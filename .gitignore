@@ -1,4 +1,12 @@
 venv/
 .env
+
+
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+
+build.md
+progress.md
