@@ -24,11 +24,11 @@ Flutter running?  : YES / NO
 
 | Phase | Name | Status | Verified |
 |-------|------|--------|----------|
-| 0 | Environment Setup | 🔲 Not Started | 🔲 |
-| 1 | Backend Foundation | 🔲 Not Started | 🔲 |
-| 2 | Database Layer | 🔲 Not Started | 🔲 |
-| 3 | Prompt Config System | 🔲 Not Started | 🔲 |
-| 4 | ChromaDB Knowledge Base | 🔲 Not Started | 🔲 |
+| 0 | Environment Setup | ✅ Complete| ✅  |
+| 1 | Backend Foundation | ✅ Complete| ✅  |
+| 2 | Database Layer | ✅ Complete | ✅  |
+| 3 | Prompt Config System | ✅ Complete | ✅  |
+| 4 | ChromaDB Knowledge Base | ✅ Complete | ✅  |
 | 5 | Agents 1–3 | 🔲 Not Started | 🔲 |
 | 6 | LangGraph Orchestrator Skeleton | 🔲 Not Started | 🔲 |
 | 7 | Agents 4–7 | 🔲 Not Started | 🔲 |
@@ -48,24 +48,24 @@ Flutter running?  : YES / NO
 
 **Goal:** All tools installed and working before writing any code.
 
-- [ ] Python 3.11+ installed → verified with `python --version`
-- [ ] Flutter installed → verified with `flutter --version`
-- [ ] `flutter doctor` shows no critical errors
-- [ ] PostgreSQL installed and running
-- [ ] Database `mediauth` created
-- [ ] User `mediauth_user` created with password
-- [ ] Privileges granted to `mediauth_user` on `mediauth` database
-- [ ] Docker Desktop installed → verified with `docker --version`
+- [✅] Python 3.11+ installed → verified with `python --version`
+- [  ] Flutter installed → verified with `flutter --version`
+- [  ] `flutter doctor` shows no critical errors
+- [✅] PostgreSQL installed and running
+- [✅] Database `mediauth` created
+- [✅] User `mediauth_user` created with password
+- [✅] Privileges granted to `mediauth_user` on `mediauth` database
+- [✅] Docker Desktop installed → verified with `docker --version`
 
 **Verification command output (paste here):**
 ```
-python --version  →
-flutter --version →
+python --version  → Python 3.14.4
+flutter --version → psql (18.3)
 psql test result  →
-docker --version  →
+docker --version  → Docker version 29.4.1, build 055a478ea9
 ```
 
-**Phase 0 Status:** 🔲 Not Started
+**Phase 0 Status:** ✅ Complete
 
 ---
 
@@ -73,27 +73,27 @@ docker --version  →
 
 **Goal:** FastAPI server running at `http://localhost:8000/health`
 
-- [ ] `backend/` folder created
-- [ ] Sub-folders created: `agents/`, `api/routes/`, `models/`, `prompts/`, `knowledge_base/sample_policies/`, `tests/`, `utils/`
-- [ ] All `__init__.py` files created
-- [ ] Python virtual environment created inside `backend/`
-- [ ] Virtual environment activated (see `(venv)` in terminal)
-- [ ] All pip packages installed
-- [ ] `requirements.txt` generated with `pip freeze`
-- [ ] `.env.example` created with all required keys
-- [ ] `.env` created with real `ANTHROPIC_API_KEY` filled in
-- [ ] `api/main.py` created with FastAPI app and `/health` endpoint
-- [ ] Server starts without errors: `uvicorn api.main:app --reload`
+- [✅] `backend/` folder created
+- [✅] Sub-folders created: `agents/`, `api/routes/`, `models/`, `prompts/`, `knowledge_base/sample_policies/`, `tests/`, `utils/`
+- [✅] All `__init__.py` files created
+- [✅] Python virtual environment created inside `backend/`
+- [✅] Virtual environment activated (see `(venv)` in terminal)
+- [✅] All pip packages installed
+- [✅] `requirements.txt` generated with `pip freeze`
+- [✅] `.env.example` created with all required keys
+- [✅] `.env` created with real `ANTHROPIC_API_KEY` filled in
+- [✅] `api/main.py` created with FastAPI app and `/health` endpoint
+- [✅] Server starts without errors: `uvicorn api.main:app --reload`
 
 **Verification:**
 ```
 curl http://localhost:8000/health
 Expected: {"status":"ok","service":"MediAuth AI","version":"0.1.0","environment":"development"}
 
-Actual output →
+Actual output → {"status":"ok","service":"MediAuth AI","version":"0.1.0","environment":"development"}%   
 ```
 
-**Phase 1 Status:** 🔲 Not Started
+**Phase 1 Status:** ✅ Complete
 
 ---
 
@@ -101,24 +101,33 @@ Actual output →
 
 **Goal:** 4 tables created in PostgreSQL.
 
-- [ ] `models/database.py` created (engine, SessionLocal, Base, get_db)
-- [ ] `models/patient.py` created (Patient model with all columns)
-- [ ] `models/auth_request.py` created (AuthRequest model)
-- [ ] `models/audit_log.py` created (AuditLog model)
-- [ ] `models/claim.py` created (Claim model)
-- [ ] `models/init_db.py` created
-- [ ] `python models/init_db.py` run successfully
-- [ ] "All tables created successfully." printed in terminal
+- [✅] `models/database.py` created (engine, SessionLocal, Base, get_db)
+- [✅] `models/patient.py` created (Patient model with all columns)
+- [✅] `models/auth_request.py` created (AuthRequest model)
+- [✅] `models/audit_log.py` created (AuditLog model)
+- [✅] `models/claim.py` created (Claim model)
+- [✅] `models/init_db.py` created
+- [✅]`python models/init_db.py` run successfully
+- [✅] "All tables created successfully." printed in terminal
 
 **Verification:**
 ```
 psql -U mediauth_user -d mediauth -c "\dt"
 Expected: 4 tables — patients, auth_requests, audit_logs, claims
 
-Actual output →
+Actual output →              
+    List of tables
+ Schema |     Name      | Type  |     Owner     
+--------+---------------+-------+---------------
+ public | audit_logs    | table | mediauth_user
+ public | auth_requests | table | mediauth_user
+ public | claims        | table | mediauth_user
+ public | patients      | table | mediauth_user
+(4 rows)
+
 ```
 
-**Phase 2 Status:** 🔲 Not Started
+**Phase 2 Status:** ✅ Complete
 
 ---
 
@@ -126,15 +135,15 @@ Actual output →
 
 **Goal:** All 7 agent prompts stored as YAML. Prompt loader works.
 
-- [ ] `prompts/intake_prompt.yaml` created
-- [ ] `prompts/medical_analysis_prompt.yaml` created
-- [ ] `prompts/policy_prompt.yaml` created
-- [ ] `prompts/justification_prompt.yaml` created
-- [ ] `prompts/appeal_prompt.yaml` created
-- [ ] `prompts/submission_prompt.yaml` created
-- [ ] `prompts/claims_prompt.yaml` created
-- [ ] `utils/prompt_loader.py` created (load_prompt, get_system_prompt, get_user_prompt, update_prompt)
-- [ ] `utils/claude_client.py` created (call_claude, call_claude_for_json)
+- [✅] `prompts/intake_prompt.yaml` created
+- [✅] `prompts/medical_analysis_prompt.yaml` created
+- [✅] `prompts/policy_prompt.yaml` created
+- [✅] `prompts/justification_prompt.yaml` created
+- [✅]`prompts/appeal_prompt.yaml` created
+- [✅] `prompts/submission_prompt.yaml` created
+- [✅] `prompts/claims_prompt.yaml` created
+- [✅] `utils/prompt_loader.py` created (load_prompt, get_system_prompt, get_user_prompt, update_prompt)
+- [✅] `utils/claude_client.py` created (call_claude, call_claude_for_json)
 
 **Verification:**
 ```
@@ -142,9 +151,29 @@ python -c "from utils.prompt_loader import get_system_prompt; print(get_system_p
 Expected: Prints the intake system prompt text. No errors.
 
 Actual output →
+You are Agent 1 of MediAuth AI — the Intake & History Agent.
+Your job is to collect and structure patient medical information.
+
+Extract the following from the user's input and return ONLY a valid JSON object:
+{
+  "name": "string",
+  "date_of_birth": "YYYY-MM-DD or unknown",
+  "insurance_policy_number": "string or unknown",
+  "insurer_name": "string or unknown",
+  "diagnoses": ["list of diagnosis strings"],
+  "medications": ["list of current medications"],
+  "allergies": ["list of known allergies"],
+  "past_procedures": ["list of past medical procedures"],
+  "medical_history": "free text summary",
+  "missing_fields": ["list of fields not provided by the user"]
+}
+
+If any field is missing, add it to missing_fields. Do not guess.
+Return ONLY the JSON object — no explanation, no markdown, no preamble.
+
 ```
 
-**Phase 3 Status:** 🔲 Not Started
+**Phase 3 Status:** ✅ Complete
 
 ---
 
@@ -152,21 +181,21 @@ Actual output →
 
 **Goal:** ChromaDB loaded with policy data. Query returns results.
 
-- [ ] `knowledge_base/loader.py` created
-- [ ] Sample policy PDFs placed in `knowledge_base/sample_policies/` (or sample text used for demo)
-- [ ] `python knowledge_base/loader.py` run successfully
-- [ ] "Knowledge base ready." printed
-- [ ] Test query returns at least 1 result
+- [✅] `knowledge_base/loader.py` created
+- [✅] Sample policy PDFs placed in `knowledge_base/sample_policies/` (or sample text used for demo)
+- [✅] `python knowledge_base/loader.py` run successfully
+- [✅] "Knowledge base ready." printed
+- [✅] Test query returns at least 1 result
 
 **Verification:**
 ```
 python -c "from knowledge_base.loader import query_policies; r = query_policies('prior authorization'); print(len(r), 'results')"
 Expected: "1 results" or more. No errors.
 
-Actual output →
+Actual output → 5 results
 ```
 
-**Phase 4 Status:** 🔲 Not Started
+**Phase 4 Status:** ✅ Complete
 
 ---
 

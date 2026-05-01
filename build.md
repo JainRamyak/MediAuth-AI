@@ -336,7 +336,7 @@ uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 
 ### How to verify Phase 1 is complete
 ```bash
-curl http://localhost:8000/health
+`curl http://localhost:8000/health`
 # Expected: {"status":"ok","service":"MediAuth AI","version":"0.1.0","environment":"development"}
 
 curl http://localhost:8000/docs
