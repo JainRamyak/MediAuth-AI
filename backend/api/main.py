@@ -2,7 +2,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes.authorization import router as auth_router
+from api.routes.authorization import router as authorization_router
 from api.routes.prompts import router as prompts_router
+from api.routes.auth import router as auth_router
 from dotenv import load_dotenv
 import os
 
@@ -25,6 +27,8 @@ app.add_middleware(
 
 # Register routers
 app.include_router(auth_router)
+app.include_router(auth_router)
+app.include_router(authorization_router)
 app.include_router(prompts_router)
 
 
