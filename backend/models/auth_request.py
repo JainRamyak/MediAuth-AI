@@ -8,6 +8,7 @@ class AuthRequest(Base):
     __tablename__ = "auth_requests"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), nullable=True)
     status = Column(String(50), default="pending")
     icd10_codes = Column(JSON)
     cpt_codes = Column(JSON)
