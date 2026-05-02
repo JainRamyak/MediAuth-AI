@@ -52,8 +52,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<!-- TODO: Replace this with your REVERSED_CLIENT_ID from GoogleService-Info.plist -->
-				<string>com.googleusercontent.apps.YOUR_CLIENT_ID</string>
+				<string>mediauth</string>
 			</array>
 		</dict>
 	</array>

@@ -129,11 +129,14 @@ class AuthService {
       await _client.auth.resetPasswordForEmail(
         email.trim(),
         redirectTo: kSupabaseRedirectUrl,
-      );
+      ).timeout(const Duration(seconds: 15));
       return AuthResult.ok(null);
     } on AuthException catch (e) {
       return AuthResult.fail(_mapAuthError(e.message));
     } catch (e) {
+      if (e.toString().contains('TimeoutException')) {
+        return AuthResult.fail('Connection timed out. Please check your internet or try again.');
+      }
       return AuthResult.fail('Could not send reset email. Please try again.');
     }
   }

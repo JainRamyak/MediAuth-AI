@@ -31,8 +31,8 @@ Future<void> main() async {
   ));
   await dotenv.load(fileName: ".env");
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
-    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+    url: kSupabaseUrl,
+    anonKey: kSupabaseAnonKey,
     debug: false,
   );
 
@@ -90,17 +90,17 @@ class _AppRootState extends State<_AppRoot> {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (!mounted) return;
       switch (data.event) {
-        case AuthChangeEvent.passwordRecovery:
-          // User tapped the reset link in their email → go to reset screen
-          _go(_Screen.resetPassword);
-          break;
+        case AuthChangeEvent.initialSession:
         case AuthChangeEvent.signedIn:
-          // Only auto-navigate if we're on splash/login/signup
+          // If we have a session, go to shell if we're on a "pre-auth" screen
           if (_screen == _Screen.splash ||
               _screen == _Screen.login  ||
               _screen == _Screen.signup) {
             _go(_Screen.shell);
           }
+          break;
+        case AuthChangeEvent.passwordRecovery:
+          _go(_Screen.resetPassword);
           break;
         case AuthChangeEvent.signedOut:
           _go(_Screen.login);
@@ -114,7 +114,14 @@ class _AppRootState extends State<_AppRoot> {
   @override
   Widget build(BuildContext context) {
     return switch (_screen) {
-      _Screen.splash => SplashScreen(onDone: () => _go(_Screen.login)),
+      _Screen.splash => SplashScreen(onDone: () {
+        final session = Supabase.instance.client.auth.currentSession;
+        if (session != null) {
+          _go(_Screen.shell);
+        } else {
+          _go(_Screen.login);
+        }
+      }),
 
       _Screen.login  => LoginScreen(
         onLogin:  () => _go(_Screen.shell),

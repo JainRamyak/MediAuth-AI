@@ -37,9 +37,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <!-- ✅ matches namespace in build.gradle -->
-                <data
-                    android:scheme="com.mediauth.mediauth_flutter"
-                    android:host="login-callback" />
+                    android:scheme="mediauth"
+                    android:host="reset-password" />
             </intent-filter>
 
         </activity>

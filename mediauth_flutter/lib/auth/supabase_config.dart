@@ -10,11 +10,11 @@ library supabase_config;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Supabase Project URL
-String kSupabaseUrl = dotenv.env['SUPABASE_URL'] ?? 
+String kSupabaseUrl = dotenv.env['SUPABASE_URL']?.trim() ?? 
     (throw Exception('SUPABASE_URL not set in .env'));
 
 /// Supabase Anon/Public Key
-String kSupabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? 
+String kSupabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY']?.trim() ?? 
     (throw Exception('SUPABASE_ANON_KEY not set in .env'));
 
 /// Google OAuth Web Client ID (from Google Cloud Console).
@@ -23,5 +23,5 @@ String kGoogleWebClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID'] ??
     'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com';
 
 /// Custom Redirect URL for OAuth flows
-String kSupabaseRedirectUrl = dotenv.env['SUPABASE_REDIRECT_URL'] ?? 
-    'com.example.mediauth_flutter://login-callback';
+String kSupabaseRedirectUrl = (dotenv.env['SUPABASE_REDIRECT_URL'] ?? 
+    'mediauth://reset-password').trim();
