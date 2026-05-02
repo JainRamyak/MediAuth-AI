@@ -10,3 +10,9 @@ __pycache__/
 
 build.md
 progress.md
+backend/test.db
+backend/knowledge_base/chroma_store/
+*.pyc
+__pycache__/
+backend/venv/
+.env
