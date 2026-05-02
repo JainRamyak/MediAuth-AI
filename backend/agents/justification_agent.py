@@ -41,6 +41,10 @@ def run_justification_agent(
 
     # Uses call_claude (not call_claude_for_json) because output is a letter, not JSON
     letter = call_claude(system, user, max_tokens=3000)
+
+    if isinstance(letter, dict):
+        letter = letter.get("letter") or letter.get("text") or str(letter)
+    
     return {
     "status": "success",
     "letter": letter

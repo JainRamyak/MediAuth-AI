@@ -1,0 +1,49 @@
+{
+  "info": {
+    "name": "MediAuth AI API Tests",
+    "description": "Integration tests for MediAuth AI authorization workflow",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8000/health"
+      }
+    },
+    {
+      "name": "List All Prompts",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8000/api/v1/prompts/"
+      }
+    },
+    {
+      "name": "Get Intake Prompt",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8000/api/v1/prompts/intake"
+      }
+    },
+    {
+      "name": "Get Appeal Prompt",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8000/api/v1/prompts/appeal"
+      }
+    },
+    {
+      "name": "Submit Authorization (Full Workflow)",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:8000/api/v1/authorize",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"patient_text\": \"Patient: John Doe, DOB 1975-03-15, Insurance: BlueCross BCX-12345, Diagnoses: Type 2 Diabetes uncontrolled, Medications: Metformin 1000mg tried 6 months\", \"requested_treatment\": \"Continuous glucose monitoring system\"}"
+        }
+      }
+    }
+  ]
+}

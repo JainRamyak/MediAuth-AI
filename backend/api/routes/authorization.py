@@ -1,4 +1,5 @@
 # backend/api/routes/authorization.py
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -28,68 +29,76 @@ class AuthorizationResponse(BaseModel):
 # ─── Endpoints ───
 @router.post("/authorize", response_model=AuthorizationResponse)
 async def run_authorization(request: PatientIntakeRequest, db: Session = Depends(get_db)):
-    """
-    Run the full multi-agent authorization workflow.
-    This is the main endpoint — Flutter calls this on form submit.
-    """
     try:
-        # Run orchestrator
         result = run_authorization_workflow(
             patient_input=request.patient_text,
             treatment=request.requested_treatment
         )
 
-        # Save patient to database
+        profile = result.get("patient_profile", {}) or {}
+        medical = result.get("medical_analysis", {}) or {}
+
+        # ── Fix 1: pass lists directly — SQLAlchemy JSON columns handle serialization
+        icd10 = medical.get("icd10_codes") or []
+        cpt   = medical.get("cpt_codes") or []
+        # Make sure they are plain Python lists, not strings
+        if isinstance(icd10, str):
+            import json; icd10 = json.loads(icd10)
+        if isinstance(cpt, str):
+            import json; cpt = json.loads(cpt)
+
+        # ── Fix 2: justification_letter might be a dict {"status":..., "letter":...}
+        raw_letter = result.get("justification_letter")
+        if isinstance(raw_letter, dict):
+            justification_letter = raw_letter.get("letter", str(raw_letter))
+        elif isinstance(raw_letter, str):
+            justification_letter = raw_letter
+        else:
+            justification_letter = ""
+
+        # ── Fix 3: diagnoses/medications — pass as plain lists, not json.dumps()
+        diagnoses  = profile.get("diagnoses") or []
+        medications = profile.get("medications") or []
+        if isinstance(diagnoses, str):
+            import json; diagnoses = json.loads(diagnoses)
+        if isinstance(medications, str):
+            import json; medications = json.loads(medications)
+
+        # Save patient
         patient = Patient(
-            name=result["patient_profile"].get("name", "Unknown Patient"),
-            insurance_policy_number=result["patient_profile"].get("insurance_policy_number"),
-            insurer_name=result["patient_profile"].get("insurer_name"),
-            diagnoses=result["patient_profile"].get("diagnoses"),
-            medications=result["patient_profile"].get("medications"),
-            structured_profile=result["patient_profile"]
+            name=profile.get("name", "Unknown Patient"),
+            insurance_policy_number=profile.get("insurance_policy_number"),
+            insurer_name=profile.get("insurer_name"),
+            diagnoses=diagnoses,
+            medications=medications,
+            structured_profile=profile          # pass dict directly
         )
         db.add(patient)
-        db.flush()  # Get patient.id without committing
+        db.flush()
 
-        # Save authorization request to database
+        # Save auth request
         auth_req = AuthRequest(
             patient_id=patient.id,
-            status=result["workflow_status"],
-            icd10_codes=result.get("medical_analysis", {}).get("icd10_codes"),
-            cpt_codes=result.get("medical_analysis", {}).get("cpt_codes"),
-            clinical_summary=result.get("medical_analysis", {}).get("clinical_necessity_summary"),
-            justification_letter=result.get("justification_letter"),
-            appeal_level=result.get("appeal_level", 0)
+            status=result.get("workflow_status", "unknown"),
+            icd10_codes=icd10,                  # plain list — NOT json.dumps()
+            cpt_codes=cpt,                       # plain list — NOT json.dumps()
+            clinical_summary=medical.get("clinical_necessity_summary"),
+            justification_letter=justification_letter,   # plain string now
+            appeal_level=int(result.get("appeal_level") or 0),
+            denial_reason=None,
+            insurer_response=None
         )
         db.add(auth_req)
         db.commit()
 
         return AuthorizationResponse(
             auth_request_id=str(auth_req.id),
-            workflow_status=result["workflow_status"],
-            appeal_level=result["appeal_level"],
-            justification_letter=result.get("justification_letter"),
-            audit_trail=result["audit_trail"]
+            workflow_status=result.get("workflow_status", "unknown"),
+            appeal_level=int(result.get("appeal_level") or 0),
+            justification_letter=justification_letter,
+            audit_trail=result.get("audit_trail", [])
         )
 
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Workflow failed: {str(e)}")
-
-
-@router.get("/authorize/{auth_request_id}")
-async def get_authorization_status(auth_request_id: str, db: Session = Depends(get_db)):
-    """Get status of a previously submitted authorization request."""
-    auth_req = db.query(AuthRequest).filter(
-        AuthRequest.id == auth_request_id
-    ).first()
-
-    if not auth_req:
-        raise HTTPException(status_code=404, detail="Authorization request not found")
-
-    return {
-        "id": str(auth_req.id),
-        "status": auth_req.status,
-        "appeal_level": auth_req.appeal_level,
-        "justification_letter": auth_req.justification_letter,
-        "created_at": auth_req.created_at.isoformat()
-    }
