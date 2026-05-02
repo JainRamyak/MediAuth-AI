@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'auth/supabase_config.dart';
+
 import 'theme/app_theme.dart';
 import 'theme/colors.dart';
 import 'screens/s01_splash.dart';
@@ -20,7 +22,8 @@ import 'screens/s10_s11_appeal.dart';
 import 'screens/activity_screen.dart';
 import 'screens/s00_profile.dart';
 import 'screens/s12_agent_list.dart';
-import 'screens/s_reset_password.dart';
+import 'screens/s_reset_password.dart'; // ← new screen
+
 import 'widgets/shared_widgets.dart';
 
 Future<void> main() async {
@@ -71,7 +74,8 @@ enum _Screen {
   appeal,
   escalation,
   profile,
-  resetPassword,
+  resetPassword, // ← new
+
 }
 
 class _AppRootState extends State<_AppRoot> {
@@ -86,6 +90,7 @@ class _AppRootState extends State<_AppRoot> {
   /// Populated by AgentPipelineScreen before navigating to the result screen.
   Map<String, dynamic>? _apiResult;
 
+
   void _go(_Screen s) => setState(() => _screen = s);
 
   // ── Auth state listener ──────────────────────────────────────────────────
@@ -97,9 +102,12 @@ class _AppRootState extends State<_AppRoot> {
       if (!mounted) return;
       switch (data.event) {
         case AuthChangeEvent.passwordRecovery:
+          // User tapped the reset link in their email → go to reset screen
           _go(_Screen.resetPassword);
           break;
         case AuthChangeEvent.signedIn:
+          // Only auto-navigate if we're on splash/login/signup
+
           if (_screen == _Screen.splash ||
               _screen == _Screen.login  ||
               _screen == _Screen.signup) {
@@ -129,6 +137,8 @@ class _AppRootState extends State<_AppRoot> {
         onSignUpSuccess: () => _go(_Screen.shell),
         onSignIn: () => _go(_Screen.login),
       ),
+
+      // ── New: Reset Password screen ─────────────────────────────────────
 
       _Screen.resetPassword => ResetPasswordScreen(
         onDone: () => _go(_Screen.login),
