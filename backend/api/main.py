@@ -1,5 +1,8 @@
+# backend/api/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from api.routes.authorization import router as auth_router
+from api.routes.prompts import router as prompts_router
 from dotenv import load_dotenv
 import os
 
@@ -7,10 +10,11 @@ load_dotenv()
 
 app = FastAPI(
     title="MediAuth AI",
-    description="Autonomous Insurance Authorization & Appeal Agent",
+    description="Autonomous Insurance Authorization & Appeal Agent System",
     version="0.1.0"
 )
 
+# CORS — allow Flutter web and mobile to connect
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,6 +22,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register routers
+app.include_router(auth_router)
+app.include_router(prompts_router)
+
 
 @app.get("/health")
 def health_check():
