@@ -451,9 +451,11 @@ class _ToastOverlayState extends State<_ToastOverlay>
       begin: const Offset(0, -1), end: Offset.zero,
     ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
     _ctrl.forward();
-    if (widget.kind == ToastKind.success) {
-      Future.delayed(widget.duration, _dismiss);
-    }
+    // All toast kinds auto-dismiss; cap at 5 seconds for safety.
+    final dismissAfter = widget.duration > const Duration(seconds: 5)
+        ? const Duration(seconds: 5)
+        : widget.duration;
+    Future.delayed(dismissAfter, _dismiss);
   }
 
   void _dismiss() async {

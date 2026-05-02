@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/colors.dart';
-import '../theme/app_theme.dart';
+import '../api/api_service.dart';
 import 's13_prompt_editor.dart';
 import 's14_prompt_test.dart';
 
@@ -61,9 +61,14 @@ const _agentList = [
 
 // ── S12 Agent List ─────────────────────────────────────────────────────────────
 
-class AgentListScreen extends StatelessWidget {
+class AgentListScreen extends StatefulWidget {
   const AgentListScreen({super.key});
 
+  @override
+  State<AgentListScreen> createState() => _AgentListScreenState();
+}
+
+class _AgentListScreenState extends State<AgentListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -101,7 +106,7 @@ class AgentListScreen extends StatelessWidget {
                   templateType: a.$3,
                   charCount: a.$4,
                   lastEdited: a.$5,
-                  onTap: () => _openEditor(ctx, a.$1, a.$2),
+                  onTap: () => _openEditor(context, a.$1, a.$2),
                 );
               },
             ),
@@ -111,24 +116,66 @@ class AgentListScreen extends StatelessWidget {
     );
   }
 
-  void _openEditor(BuildContext ctx, int num, String name) {
-    final agent = AgentPrompt(
-      name: name,
-      systemPrompt: 'You are a clinical authorization specialist AI working within the MediAuth AI agentic pipeline.\n\nYour role is to process the patient intake data, extract key medical information, and structure it for downstream agents.\n\nAlways validate that {patient_name}, {dob}, {policy_number}, and {insurer} are present before proceeding.\n\nOutput: Structured JSON with keys: patient_profile, clinical_history, insurance_details.',
-      userTemplate: 'Patient intake data:\n{patient_input}\n\nExtract and return structured profile JSON.',
+  /// Maps agent card number → backend agent key used by GET/PUT /api/v1/prompts/{key}
+  static const _agentKeys = {
+    1: 'intake',
+    2: 'medical_analysis',
+    3: 'policy',
+    4: 'justification',
+    5: 'submission',
+    6: 'appeal',
+    7: 'claims',
+  };
+
+  Future<void> _openEditor(BuildContext context, int num, String name) async {
+    final agentKey = _agentKeys[num] ?? 'intake';
+
+    // Show loading while fetching prompt from backend
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: C.teal500),
+      ),
     );
 
-    Navigator.of(ctx).push(MaterialPageRoute(
+    Map<String, String> promptData;
+    try {
+      promptData = await ApiService.fetchPrompt(agentKey);
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // dismiss loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not load prompt: $e'),
+          backgroundColor: C.red500,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // dismiss loading
+
+    final agent = AgentPrompt(
+      name: name,
+      agentKey: agentKey,
+      systemPrompt: promptData['system'] ?? '',
+      userTemplate: promptData['user_template'] ?? '',
+    );
+
+    Navigator.of(context).push(MaterialPageRoute(
       builder: (ctx2) => PromptEditorScreen(
         agent: agent,
         onBack: () => Navigator.pop(ctx2),
         onTest: (ag) {
-          Navigator.of(ctx).push(MaterialPageRoute(
+          Navigator.of(context).push(MaterialPageRoute(
             builder: (ctx3) => PromptTestScreen(
               agent: ag,
               onBack: () => Navigator.pop(ctx3),
               onEdit: () => Navigator.pop(ctx3),
-            )
+            ),
           ));
         },
       ),

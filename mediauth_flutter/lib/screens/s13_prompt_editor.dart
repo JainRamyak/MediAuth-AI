@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/colors.dart';
+import '../api/api_service.dart';
+
+// ── Agent prompt model ────────────────────────────────────────────────────────
 
 class AgentPrompt {
   final String name;
+
+  /// Backend key used for GET/PUT /api/v1/prompts/{agentKey}.
+  /// e.g. 'intake', 'medical_analysis', 'policy', 'justification', etc.
+  final String agentKey;
+
   String systemPrompt;
   String userTemplate;
 
   AgentPrompt({
     required this.name,
+    required this.agentKey,
     required this.systemPrompt,
     required this.userTemplate,
   });
@@ -35,34 +44,86 @@ class PromptEditorScreen extends StatefulWidget {
 class _PromptEditorScreenState extends State<PromptEditorScreen> {
   late TextEditingController _sysCtrl;
   late TextEditingController _userCtrl;
+
+  /// Original values — used for "Reset to default" (local session reset, not server-side)
+  late String _origSystem;
+  late String _origUserTemplate;
+
   bool _saving = false;
   bool _saved = false;
 
   @override
   void initState() {
     super.initState();
+    _origSystem       = widget.agent.systemPrompt;
+    _origUserTemplate = widget.agent.userTemplate;
     _sysCtrl  = TextEditingController(text: widget.agent.systemPrompt);
     _userCtrl = TextEditingController(text: widget.agent.userTemplate);
   }
 
-  int get _totalChars =>
-    _sysCtrl.text.length + _userCtrl.text.length;
+  int get _totalChars => _sysCtrl.text.length + _userCtrl.text.length;
+
+  // ── Save — calls PUT /api/v1/prompts/{agentKey} ───────────────────────────
 
   Future<void> _save() async {
+    if (_saving) return;
+
+    final system = _sysCtrl.text.trim();
+    if (system.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('System prompt cannot be empty — reset to default first.'),
+          backgroundColor: C.red500,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-    widget.agent.systemPrompt = _sysCtrl.text;
-    widget.agent.userTemplate = _userCtrl.text;
-    setState(() { _saving = false; _saved = true; });
-    await Future.delayed(const Duration(seconds: 3));
-    if (mounted) setState(() => _saved = false);
+
+    try {
+      await ApiService.updatePromptDirect(
+        widget.agent.agentKey,
+        system,
+        _userCtrl.text,
+      );
+
+      // Update the in-memory model so the test screen uses the new values
+      widget.agent.systemPrompt = system;
+      widget.agent.userTemplate = _userCtrl.text;
+
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _saved  = true;
+      });
+
+      // Auto-clear "Saved ✓" badge after 3 seconds
+      await Future.delayed(const Duration(seconds: 3));
+      if (mounted) setState(() => _saved = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Save failed: $e'),
+          backgroundColor: C.red500,
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'Retry',
+            textColor: C.white,
+            onPressed: _save,
+          ),
+        ),
+      );
+    }
   }
 
   void _reset() {
-    _sysCtrl.text  = widget.agent.systemPrompt;
-    _userCtrl.text = widget.agent.userTemplate;
-    setState(() {});
+    _sysCtrl.text  = _origSystem;
+    _userCtrl.text = _origUserTemplate;
+    setState(() => _saved = false);
   }
 
   @override

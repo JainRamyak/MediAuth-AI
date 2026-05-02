@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_theme.dart';
 import 'theme/colors.dart';
 import 'screens/s01_splash.dart';
@@ -8,8 +10,9 @@ import 'screens/s02_login.dart';
 import 'screens/s02a_signup.dart';
 import 'screens/s03_dashboard.dart';
 import 'screens/s04_patient_info.dart';
-import 'screens/s05_treatment_request.dart';
+import 'screens/s05_medical_info.dart';
 import 'screens/s06_review_submit.dart';
+import 'screens/s06b_prompt_customization.dart'; // ← NEW
 import 'screens/s07_agent_pipeline.dart';
 import 'screens/s08_approved.dart';
 import 'screens/s09_denied.dart';
@@ -17,14 +20,22 @@ import 'screens/s10_s11_appeal.dart';
 import 'screens/activity_screen.dart';
 import 'screens/s00_profile.dart';
 import 'screens/s12_agent_list.dart';
+import 'screens/s_reset_password.dart';
 import 'widgets/shared_widgets.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
   ));
+  await dotenv.load(fileName: ".env");
+  await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+    debug: false,
+  );
+
   runApp(const MediAuthApp());
 }
 
@@ -40,8 +51,6 @@ class MediAuthApp extends StatelessWidget {
   );
 }
 
-// ── App Root — manages auth + screen routing ───────────────────────────────────
-
 class _AppRoot extends StatefulWidget {
   const _AppRoot();
 
@@ -53,25 +62,58 @@ enum _Screen {
   splash,
   login,
   signup,
-  shell,          // 3-tab shell
+  shell,
   newRequest,
+  promptCustomization, // ← NEW (Screen 6B)
   pipeline,
   approved,
   denied,
   appeal,
   escalation,
   profile,
+  resetPassword,
 }
 
 class _AppRootState extends State<_AppRoot> {
   _Screen _screen = _Screen.splash;
 
-  // New request state
   final _patient   = PatientFormData();
   final _treatment = TreatmentFormData();
-  int   _intakeStep = 1; // 1 = patient, 2 = treatment, 3 = review
+  PromptSubmitPayload? _payload;
+  int   _intakeStep = 1;
+
+  /// Stores the raw API response from POST /api/v1/authorize.
+  /// Populated by AgentPipelineScreen before navigating to the result screen.
+  Map<String, dynamic>? _apiResult;
 
   void _go(_Screen s) => setState(() => _screen = s);
+
+  // ── Auth state listener ──────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      if (!mounted) return;
+      switch (data.event) {
+        case AuthChangeEvent.passwordRecovery:
+          _go(_Screen.resetPassword);
+          break;
+        case AuthChangeEvent.signedIn:
+          if (_screen == _Screen.splash ||
+              _screen == _Screen.login  ||
+              _screen == _Screen.signup) {
+            _go(_Screen.shell);
+          }
+          break;
+        case AuthChangeEvent.signedOut:
+          _go(_Screen.login);
+          break;
+        default:
+          break;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,13 +121,17 @@ class _AppRootState extends State<_AppRoot> {
       _Screen.splash => SplashScreen(onDone: () => _go(_Screen.login)),
 
       _Screen.login  => LoginScreen(
-        onLogin: () => _go(_Screen.shell),
+        onLogin:  () => _go(_Screen.shell),
         onSignUp: () => _go(_Screen.signup),
       ),
 
       _Screen.signup => SignUpScreen(
         onSignUpSuccess: () => _go(_Screen.shell),
         onSignIn: () => _go(_Screen.login),
+      ),
+
+      _Screen.resetPassword => ResetPasswordScreen(
+        onDone: () => _go(_Screen.login),
       ),
 
       _Screen.shell  => _ShellScreen(
@@ -108,15 +154,45 @@ class _AppRootState extends State<_AppRoot> {
 
       _Screen.newRequest => _buildIntake(),
 
+      // ── Screen 6B — Prompt Customization (NEW) ─────────────────────────
+      _Screen.promptCustomization => PromptCustomizationScreen(
+        onBack: () {
+          // Return to Screen 6 (review step, intakeStep = 3)
+          setState(() {
+            _intakeStep = 3;
+            _screen = _Screen.newRequest;
+          });
+        },
+        onSkip: () {
+          _payload = null;
+          _go(_Screen.pipeline);
+        },
+        onSubmit: (payload) {
+          _payload = payload;
+          _go(_Screen.pipeline);
+        },
+      ),
+
       _Screen.pipeline => AgentPipelineScreen(
-        onApproved: () => _go(_Screen.approved),
-        onDenied:   () => _go(_Screen.denied),
+        patient: _patient,
+        treatment: _treatment,
+        payload: _payload,
+        onApproved: (result) {
+          _apiResult = result;
+          _go(_Screen.approved);
+        },
+        onDenied: (result) {
+          _apiResult = result;
+          _go(_Screen.denied);
+        },
       ),
 
       _Screen.approved => ApprovedScreen(
+        apiResult: _apiResult,
         onDone: () => _go(_Screen.shell)),
 
       _Screen.denied => DeniedScreen(
+        apiResult: _apiResult,
         onAppeal:    () => _go(_Screen.appeal),
         onDashboard: () => _go(_Screen.shell),
       ),
@@ -141,8 +217,8 @@ class _AppRootState extends State<_AppRoot> {
       onBack: () => _go(_Screen.shell),
       onNext: () => setState(() => _intakeStep = 2),
     ),
-    2 => TreatmentRequestScreen(
-      data: _treatment,
+    2 => MedicalInfoScreen(
+      data: _patient,
       onBack: () => setState(() => _intakeStep = 1),
       onNext: () => setState(() => _intakeStep = 3),
     ),
@@ -152,6 +228,7 @@ class _AppRootState extends State<_AppRoot> {
       onBack: () => setState(() => _intakeStep = 2),
       onSubmit: () => _go(_Screen.pipeline),
       onEditStep: (s) => setState(() => _intakeStep = s),
+      onCustomizePrompts: () => _go(_Screen.promptCustomization), // ← NEW
     ),
   };
 }
@@ -184,17 +261,12 @@ class _ShellScreenState extends State<_ShellScreen> {
         onRequestTap:  widget.onRequestTap,
         onProfileTap:  widget.onProfileTap,
       ),
-      ActivityScreen(
-        onRequestTap: widget.onRequestTap,
-      ),
+      ActivityScreen(onRequestTap: widget.onRequestTap),
       const AgentListScreen(),
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _tab,
-        children: tabs,
-      ),
+      body: IndexedStack(index: _tab, children: tabs),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.only(top: 12, bottom: 24, left: 16, right: 16),
         decoration: const BoxDecoration(
@@ -261,10 +333,10 @@ class _NavBarItem extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, 
-              size: 22, 
+            Icon(icon,
+              size: 22,
               color: isSelected ? C.teal700 : C.textTertiary),
-            if (isSelected) 
+            if (isSelected)
               Padding(
                 padding: const EdgeInsets.only(left: 6),
                 child: Text(label,

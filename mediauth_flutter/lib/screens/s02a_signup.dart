@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../theme/colors.dart';
 import '../widgets/shared_widgets.dart';
+import '../auth/auth_service.dart';
 
 class SignUpScreen extends StatefulWidget {
   final VoidCallback onSignUpSuccess;
@@ -20,13 +21,13 @@ class SignUpScreen extends StatefulWidget {
 
 class _SignUpScreenState extends State<SignUpScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameCtrl   = TextEditingController(text: 'Margaret Thompson');
-  final _policyCtrl = TextEditingController(text: 'UHG-9844-XYZ');
-  final _emailCtrl  = TextEditingController(text: 'margaret@example.com');
-  final _passCtrl   = TextEditingController(text: 'password123');
+  final _nameCtrl   = TextEditingController();
+  final _policyCtrl = TextEditingController();
+  final _emailCtrl  = TextEditingController();
+  final _passCtrl   = TextEditingController();
 
-  DateTime? _dob = DateTime(1982, 05, 14);
-  String? _insurer = 'UnitedHealth';
+  DateTime? _dob;
+  String? _insurer;
   final _insurers = [
     'UnitedHealth', 'Blue Cross Blue Shield', 'Aetna Health',
     'Cigna Healthcare', 'Humana', 'Medicare', 'Other'
@@ -60,9 +61,53 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 1400));
+
+    final result = await AuthService.instance.signUpWithEmail(
+      email: _emailCtrl.text.trim(),
+      password: _passCtrl.text,
+      metadata: {
+        'full_name':        _nameCtrl.text.trim(),
+        'date_of_birth':   _dob!.toIso8601String(),
+        'insurer':         _insurer ?? '',
+        'policy_number':   _policyCtrl.text.trim(),
+      },
+    );
+
     if (!mounted) return;
     setState(() => _loading = false);
+
+    if (!result.success) {
+      showMediToast(context, result.errorMessage ?? 'Sign-up failed.',
+        kind: ToastKind.error);
+      return;
+    }
+
+    // Supabase may require email confirmation before a session is granted.
+    if (result.user?.emailConfirmedAt != null ||
+        AuthService.instance.currentSession != null) {
+      widget.onSignUpSuccess();
+    } else {
+      showMediToast(
+        context,
+        'Account created! Check your email to verify your address.',
+        kind: ToastKind.success,
+        duration: const Duration(seconds: 5),
+      );
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) widget.onSignIn();
+    }
+  }
+
+  Future<void> _googleSignUp() async {
+    setState(() => _loading = true);
+    final result = await AuthService.instance.signInWithGoogle();
+    if (!mounted) return;
+    setState(() => _loading = false);
+    if (!result.success) {
+      showMediToast(context, result.errorMessage ?? 'Google sign-up failed.',
+        kind: ToastKind.error);
+      return;
+    }
     widget.onSignUpSuccess();
   }
 
@@ -148,6 +193,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         textInputAction: TextInputAction.next,
                         decoration: const InputDecoration(
                           labelText: 'Full Legal Name',
+                          hintText: 'e.g. Margaret Thompson',
                           prefixIcon: Icon(Icons.person_outline, size: 20)),
                         validator: (v) => v!.isEmpty ? 'Required' : null,
                       ),
@@ -227,6 +273,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         textInputAction: TextInputAction.next,
                         decoration: const InputDecoration(
                           labelText: 'Email Address',
+                          hintText: 'e.g. margaret@example.com',
                           prefixIcon: Icon(Icons.email_outlined, size: 20)),
                         validator: (v) => v!.isEmpty ? 'Required' : null,
                       ),
@@ -239,6 +286,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         onFieldSubmitted: (_) => _signUp(),
                         decoration: InputDecoration(
                           labelText: 'Password',
+                          hintText: 'Minimum 8 characters',
                           prefixIcon: const Icon(
                             Icons.lock_outline_rounded, size: 20),
                           suffixIcon: IconButton(
@@ -260,6 +308,35 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         onPressed: _loading ? null : _signUp,
                         loading: _loading,
                         icon: Icons.check_circle_outline_rounded,
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Google Sign-Up
+                      GestureDetector(
+                        onTap: _loading ? null : _googleSignUp,
+                        child: Container(
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: C.surf1,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: C.surf3),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text('G',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF4285F4))),
+                              const SizedBox(width: 10),
+                              Text('Sign up with Google',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14, fontWeight: FontWeight.w600,
+                                  color: C.textPrimary)),
+                            ],
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
 

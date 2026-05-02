@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/colors.dart';
 import '../widgets/shared_widgets.dart';
+import '../auth/auth_service.dart';
+import '../auth/forgot_password_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onLogin;
@@ -42,21 +44,37 @@ class _LoginScreenState extends State<LoginScreen>
     });
   }
 
+  // ── Email / Password login ──────────────────────────────────────────────────
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
-    await Future.delayed(const Duration(milliseconds: 1400));
-    if (!mounted) return;
 
-    if (_idCtrl.text.trim().isEmpty) {
-      setState(() {
-        _loading = false;
-        _error = 'Incorrect credentials — please try again.';
-      });
+    final result = await AuthService.instance.signInWithEmail(
+      email: _idCtrl.text.trim(),
+      password: _passCtrl.text,
+    );
+
+    if (!mounted) return;
+    if (!result.success) {
+      setState(() { _loading = false; _error = result.errorMessage; });
       return;
     }
     setState(() { _loading = false; _showSuccess = true; });
-    await Future.delayed(const Duration(milliseconds: 800));
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (mounted) widget.onLogin();
+  }
+
+  // ── Google Sign-In ──────────────────────────────────────────────────────────
+  Future<void> _googleSignIn() async {
+    setState(() { _loading = true; _error = null; });
+    final result = await AuthService.instance.signInWithGoogle();
+    if (!mounted) return;
+    if (!result.success) {
+      setState(() { _loading = false; _error = result.errorMessage; });
+      return;
+    }
+    setState(() { _loading = false; _showSuccess = true; });
+    await Future.delayed(const Duration(milliseconds: 700));
     if (mounted) widget.onLogin();
   }
 
@@ -233,10 +251,11 @@ class _LoginScreenState extends State<LoginScreen>
                           ? 'Enter your password' : null,
                       ),
 
+                      // Forgot password
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () {},
+                          onPressed: () => showForgotPasswordSheet(context),
                           child: Text('Forgot password?',
                             style: GoogleFonts.inter(
                               fontSize: 13, color: C.teal600,
@@ -289,7 +308,9 @@ class _LoginScreenState extends State<LoginScreen>
                                       const Icon(Icons.check_circle_rounded,
                                         size: 16, color: C.teal600),
                                       const SizedBox(width: 8),
-                                      Text('Margaret Thompson · Patient',
+                                      Text(
+                                        AuthService.instance.currentUser?.email
+                                          ?? 'Signed in successfully',
                                         style: GoogleFonts.inter(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w500,
@@ -316,25 +337,30 @@ class _LoginScreenState extends State<LoginScreen>
                       ]),
                       const SizedBox(height: 20),
 
-                      // Biometric login row
-                      Container(
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: C.surf1,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: C.surf3),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.fingerprint_rounded,
-                              size: 22, color: C.teal600),
-                            const SizedBox(width: 10),
-                            Text('Sign in with Biometrics',
-                              style: GoogleFonts.inter(
-                                fontSize: 14, fontWeight: FontWeight.w600,
-                                color: C.textPrimary)),
-                          ],
+                      // Google Sign-In button
+                      GestureDetector(
+                        onTap: _loading ? null : _googleSignIn,
+                        child: Container(
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: C.surf1,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: C.surf3),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text('G',
+                                style: GoogleFonts.inter(
+                                  fontSize: 18, fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF4285F4))),
+                              const SizedBox(width: 10),
+                              Text('Continue with Google',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14, fontWeight: FontWeight.w600,
+                                  color: C.textPrimary)),
+                            ],
+                          ),
                         ),
                       ),
 
