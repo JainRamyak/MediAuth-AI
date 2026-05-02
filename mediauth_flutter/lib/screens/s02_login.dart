@@ -64,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen>
     if (mounted) widget.onLogin();
   }
 
-  // ── Google Sign-In ──────────────────────────────────────────────────────────
+  // ── Google Sign-In (browser OAuth) ─────────────────────────────────────────
   Future<void> _googleSignIn() async {
     setState(() { _loading = true; _error = null; });
     final result = await AuthService.instance.signInWithGoogle();
@@ -73,10 +73,12 @@ class _LoginScreenState extends State<LoginScreen>
       setState(() { _loading = false; _error = result.errorMessage; });
       return;
     }
-    setState(() { _loading = false; _showSuccess = true; });
-    await Future.delayed(const Duration(milliseconds: 700));
-    if (mounted) widget.onLogin();
+    // Browser was launched successfully — user will be redirected back via
+    // the deep link, which triggers onAuthStateChange → _go(_Screen.shell).
+    // Just reset loading; don't call onLogin() yet.
+    setState(() { _loading = false; });
   }
+
 
   @override
   void dispose() {

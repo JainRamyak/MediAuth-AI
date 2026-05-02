@@ -1,9 +1,9 @@
 /// ---------------------------------------------------------------------------
-/// auth_service.dart
+/// auth_service.dart  — uses Supabase OAuth browser flow for Google Sign-In
 /// ---------------------------------------------------------------------------
 
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'supabase_config.dart';
 
 // ── Result wrapper ──────────────────────────────────────────────────────────
@@ -49,7 +49,6 @@ class AuthService {
     required String password,
   }) async {
     try {
-      // ✅ signInWithPassword — not signUp
       final res = await _client.auth.signInWithPassword(
         email: email.trim(),
         password: password,
@@ -76,7 +75,6 @@ class AuthService {
         data: metadata,
       );
 
-      // ✅ email confirmation is OFF so user returned immediately
       if (res.user != null) {
         return AuthResult.ok(res.user);
       }
@@ -89,32 +87,20 @@ class AuthService {
     }
   }
 
-  // ── Google Sign-In ──────────────────────────────────────────────────────
+  // ── Google Sign-In (browser OAuth flow) ────────────────────────────────
+  // Opens a browser/Chrome Custom Tab for Google sign-in.
+  // Supabase handles the token exchange and calls back via the deep link.
 
   Future<AuthResult> signInWithGoogle() async {
     try {
-      final googleUser = await GoogleSignIn(
-        clientId: kGoogleWebClientId,
-      ).signIn();
-
-      if (googleUser == null) {
-        return AuthResult.fail('Google sign-in was cancelled.');
-      }
-
-      final googleAuth = await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-      final accessToken = googleAuth.accessToken;
-
-      if (idToken == null) {
-        return AuthResult.fail('Could not retrieve Google ID token.');
-      }
-
-      final res = await _client.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
+      await _client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kIsWeb ? null : kSupabaseRedirectUrl,
       );
-      return AuthResult.ok(res.user);
+      // signInWithOAuth launches the browser and returns immediately.
+      // The actual sign-in result arrives via the onAuthStateChange stream
+      // in main.dart. Return a success-pending sentinel to unblock the UI.
+      return AuthResult.ok(null);
     } on AuthException catch (e) {
       return AuthResult.fail(_mapAuthError(e.message));
     } catch (e) {
@@ -128,7 +114,7 @@ class AuthService {
     try {
       await _client.auth.resetPasswordForEmail(
         email.trim(),
-        redirectTo: kSupabaseRedirectUrl,
+        redirectTo: kIsWeb ? null : kSupabaseRedirectUrl,
       );
       return AuthResult.ok(null);
     } on AuthException catch (e) {
@@ -142,7 +128,6 @@ class AuthService {
 
   Future<void> signOut() async {
     try {
-      await GoogleSignIn().signOut().catchError((_) {});
       await _client.auth.signOut();
     } catch (_) {}
   }

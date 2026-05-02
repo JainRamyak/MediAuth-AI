@@ -23,5 +23,5 @@ String kGoogleWebClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID'] ??
     'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com';
 
 /// Custom Redirect URL for OAuth flows
-String kSupabaseRedirectUrl = dotenv.env['SUPABASE_REDIRECT_URL'] ?? 
-    'com.example.mediauth_flutter://login-callback';
+String kSupabaseRedirectUrl = dotenv.env['SUPABASE_REDIRECT_URL']?.trim() ?? 
+    'com.mediauth.app://login-callback';

@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; // keep for SystemChrome
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'auth/supabase_config.dart';
-
 import 'theme/app_theme.dart';
 import 'theme/colors.dart';
 import 'screens/s01_splash.dart';
@@ -98,25 +96,36 @@ class _AppRootState extends State<_AppRoot> {
   @override
   void initState() {
     super.initState();
+    // supabase_flutter v2 automatically intercepts the deep-link callback
+    // (via authCallbackUrlHostname in Supabase.initialize()) and fires
+    // onAuthStateChange with AuthChangeEvent.signedIn — no custom channel needed.
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (!mounted) return;
       switch (data.event) {
-        case AuthChangeEvent.passwordRecovery:
-          // User tapped the reset link in their email → go to reset screen
-          _go(_Screen.resetPassword);
-          break;
-        case AuthChangeEvent.signedIn:
-          // Only auto-navigate if we're on splash/login/signup
-
-          if (_screen == _Screen.splash ||
-              _screen == _Screen.login  ||
-              _screen == _Screen.signup) {
+        // ── Existing session on cold start ────────────────────────────────
+        case AuthChangeEvent.initialSession:
+          if (data.session != null) {
+            // User is already logged in → skip login entirely
             _go(_Screen.shell);
           }
           break;
+
+        case AuthChangeEvent.passwordRecovery:
+          _go(_Screen.resetPassword);
+          break;
+
+        case AuthChangeEvent.signedIn:
+          // Fires after a fresh sign-in (email/password or OAuth callback).
+          // Navigate to shell from any pre-auth screen.
+          if (_screen != _Screen.shell) {
+            _go(_Screen.shell);
+          }
+          break;
+
         case AuthChangeEvent.signedOut:
           _go(_Screen.login);
           break;
+
         default:
           break;
       }
@@ -126,7 +135,13 @@ class _AppRootState extends State<_AppRoot> {
   @override
   Widget build(BuildContext context) {
     return switch (_screen) {
-      _Screen.splash => SplashScreen(onDone: () => _go(_Screen.login)),
+      _Screen.splash => SplashScreen(
+        onDone: () {
+          // If an active session exists, go straight to shell
+          final user = Supabase.instance.client.auth.currentUser;
+          _go(user != null ? _Screen.shell : _Screen.login);
+        },
+      ),
 
       _Screen.login  => LoginScreen(
         onLogin:  () => _go(_Screen.shell),
