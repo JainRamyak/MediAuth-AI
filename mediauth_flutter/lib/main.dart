@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'auth/supabase_config.dart';
 import 'theme/app_theme.dart';
 import 'theme/colors.dart';
 import 'screens/s01_splash.dart';
@@ -17,14 +20,22 @@ import 'screens/s10_s11_appeal.dart';
 import 'screens/activity_screen.dart';
 import 'screens/s00_profile.dart';
 import 'screens/s12_agent_list.dart';
+import 'screens/s_reset_password.dart'; // ← new screen
 import 'widgets/shared_widgets.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
   ));
+  await dotenv.load(fileName: ".env");
+  await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+    debug: false,
+  );
+
   runApp(const MediAuthApp());
 }
 
@@ -40,8 +51,6 @@ class MediAuthApp extends StatelessWidget {
   );
 }
 
-// ── App Root — manages auth + screen routing ───────────────────────────────────
-
 class _AppRoot extends StatefulWidget {
   const _AppRoot();
 
@@ -53,7 +62,7 @@ enum _Screen {
   splash,
   login,
   signup,
-  shell,          // 3-tab shell
+  shell,
   newRequest,
   pipeline,
   approved,
@@ -61,17 +70,46 @@ enum _Screen {
   appeal,
   escalation,
   profile,
+  resetPassword, // ← new
 }
 
 class _AppRootState extends State<_AppRoot> {
   _Screen _screen = _Screen.splash;
 
-  // New request state
   final _patient   = PatientFormData();
   final _treatment = TreatmentFormData();
-  int   _intakeStep = 1; // 1 = patient, 2 = treatment, 3 = review
+  int   _intakeStep = 1;
 
   void _go(_Screen s) => setState(() => _screen = s);
+
+  // ── Auth state listener ──────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      if (!mounted) return;
+      switch (data.event) {
+        case AuthChangeEvent.passwordRecovery:
+          // User tapped the reset link in their email → go to reset screen
+          _go(_Screen.resetPassword);
+          break;
+        case AuthChangeEvent.signedIn:
+          // Only auto-navigate if we're on splash/login/signup
+          if (_screen == _Screen.splash ||
+              _screen == _Screen.login  ||
+              _screen == _Screen.signup) {
+            _go(_Screen.shell);
+          }
+          break;
+        case AuthChangeEvent.signedOut:
+          _go(_Screen.login);
+          break;
+        default:
+          break;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,13 +117,18 @@ class _AppRootState extends State<_AppRoot> {
       _Screen.splash => SplashScreen(onDone: () => _go(_Screen.login)),
 
       _Screen.login  => LoginScreen(
-        onLogin: () => _go(_Screen.shell),
+        onLogin:  () => _go(_Screen.shell),
         onSignUp: () => _go(_Screen.signup),
       ),
 
       _Screen.signup => SignUpScreen(
         onSignUpSuccess: () => _go(_Screen.shell),
         onSignIn: () => _go(_Screen.login),
+      ),
+
+      // ── New: Reset Password screen ─────────────────────────────────────
+      _Screen.resetPassword => ResetPasswordScreen(
+        onDone: () => _go(_Screen.login),
       ),
 
       _Screen.shell  => _ShellScreen(
@@ -184,17 +227,12 @@ class _ShellScreenState extends State<_ShellScreen> {
         onRequestTap:  widget.onRequestTap,
         onProfileTap:  widget.onProfileTap,
       ),
-      ActivityScreen(
-        onRequestTap: widget.onRequestTap,
-      ),
+      ActivityScreen(onRequestTap: widget.onRequestTap),
       const AgentListScreen(),
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _tab,
-        children: tabs,
-      ),
+      body: IndexedStack(index: _tab, children: tabs),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.only(top: 12, bottom: 24, left: 16, right: 16),
         decoration: const BoxDecoration(
@@ -261,10 +299,10 @@ class _NavBarItem extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, 
-              size: 22, 
+            Icon(icon,
+              size: 22,
               color: isSelected ? C.teal700 : C.textTertiary),
-            if (isSelected) 
+            if (isSelected)
               Padding(
                 padding: const EdgeInsets.only(left: 6),
                 child: Text(label,

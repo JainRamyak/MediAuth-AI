@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/colors.dart';
 import '../widgets/shared_widgets.dart';
+import '../auth/auth_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -171,7 +172,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             // Sign out
             OutlinedButton.icon(
-              onPressed: widget.onLogout,
+              onPressed: () async {
+                await AuthService.instance.signOut();
+                if (context.mounted) widget.onLogout();
+              },
               icon: const Icon(Icons.logout_rounded,
                 size: 18, color: C.red500),
               label: Text('Sign out',
