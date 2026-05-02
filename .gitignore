@@ -22,3 +22,8 @@ frontend/dist/
 frontend/build/
 node_modules/
 *.db
+.env
+__pycache__/
+*.pyc
+backend/venv/
+backend/knowledge_base/chroma_store/

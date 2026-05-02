@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth/supabase_config.dart';
+
 import 'theme/app_theme.dart';
 import 'theme/colors.dart';
 import 'screens/s01_splash.dart';
@@ -11,8 +12,9 @@ import 'screens/s02_login.dart';
 import 'screens/s02a_signup.dart';
 import 'screens/s03_dashboard.dart';
 import 'screens/s04_patient_info.dart';
-import 'screens/s05_treatment_request.dart';
+import 'screens/s05_medical_info.dart';
 import 'screens/s06_review_submit.dart';
+import 'screens/s06b_prompt_customization.dart'; // ← NEW
 import 'screens/s07_agent_pipeline.dart';
 import 'screens/s08_approved.dart';
 import 'screens/s09_denied.dart';
@@ -21,6 +23,7 @@ import 'screens/activity_screen.dart';
 import 'screens/s00_profile.dart';
 import 'screens/s12_agent_list.dart';
 import 'screens/s_reset_password.dart'; // ← new screen
+
 import 'widgets/shared_widgets.dart';
 
 Future<void> main() async {
@@ -64,6 +67,7 @@ enum _Screen {
   signup,
   shell,
   newRequest,
+  promptCustomization, // ← NEW (Screen 6B)
   pipeline,
   approved,
   denied,
@@ -71,6 +75,7 @@ enum _Screen {
   escalation,
   profile,
   resetPassword, // ← new
+
 }
 
 class _AppRootState extends State<_AppRoot> {
@@ -78,7 +83,13 @@ class _AppRootState extends State<_AppRoot> {
 
   final _patient   = PatientFormData();
   final _treatment = TreatmentFormData();
+  PromptSubmitPayload? _payload;
   int   _intakeStep = 1;
+
+  /// Stores the raw API response from POST /api/v1/authorize.
+  /// Populated by AgentPipelineScreen before navigating to the result screen.
+  Map<String, dynamic>? _apiResult;
+
 
   void _go(_Screen s) => setState(() => _screen = s);
 
@@ -96,6 +107,7 @@ class _AppRootState extends State<_AppRoot> {
           break;
         case AuthChangeEvent.signedIn:
           // Only auto-navigate if we're on splash/login/signup
+
           if (_screen == _Screen.splash ||
               _screen == _Screen.login  ||
               _screen == _Screen.signup) {
@@ -127,6 +139,7 @@ class _AppRootState extends State<_AppRoot> {
       ),
 
       // ── New: Reset Password screen ─────────────────────────────────────
+
       _Screen.resetPassword => ResetPasswordScreen(
         onDone: () => _go(_Screen.login),
       ),
@@ -151,15 +164,45 @@ class _AppRootState extends State<_AppRoot> {
 
       _Screen.newRequest => _buildIntake(),
 
+      // ── Screen 6B — Prompt Customization (NEW) ─────────────────────────
+      _Screen.promptCustomization => PromptCustomizationScreen(
+        onBack: () {
+          // Return to Screen 6 (review step, intakeStep = 3)
+          setState(() {
+            _intakeStep = 3;
+            _screen = _Screen.newRequest;
+          });
+        },
+        onSkip: () {
+          _payload = null;
+          _go(_Screen.pipeline);
+        },
+        onSubmit: (payload) {
+          _payload = payload;
+          _go(_Screen.pipeline);
+        },
+      ),
+
       _Screen.pipeline => AgentPipelineScreen(
-        onApproved: () => _go(_Screen.approved),
-        onDenied:   () => _go(_Screen.denied),
+        patient: _patient,
+        treatment: _treatment,
+        payload: _payload,
+        onApproved: (result) {
+          _apiResult = result;
+          _go(_Screen.approved);
+        },
+        onDenied: (result) {
+          _apiResult = result;
+          _go(_Screen.denied);
+        },
       ),
 
       _Screen.approved => ApprovedScreen(
+        apiResult: _apiResult,
         onDone: () => _go(_Screen.shell)),
 
       _Screen.denied => DeniedScreen(
+        apiResult: _apiResult,
         onAppeal:    () => _go(_Screen.appeal),
         onDashboard: () => _go(_Screen.shell),
       ),
@@ -184,8 +227,8 @@ class _AppRootState extends State<_AppRoot> {
       onBack: () => _go(_Screen.shell),
       onNext: () => setState(() => _intakeStep = 2),
     ),
-    2 => TreatmentRequestScreen(
-      data: _treatment,
+    2 => MedicalInfoScreen(
+      data: _patient,
       onBack: () => setState(() => _intakeStep = 1),
       onNext: () => setState(() => _intakeStep = 3),
     ),
@@ -195,6 +238,7 @@ class _AppRootState extends State<_AppRoot> {
       onBack: () => setState(() => _intakeStep = 2),
       onSubmit: () => _go(_Screen.pipeline),
       onEditStep: (s) => setState(() => _intakeStep = s),
+      onCustomizePrompts: () => _go(_Screen.promptCustomization), // ← NEW
     ),
   };
 }

@@ -52,8 +52,8 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<!-- TODO: Replace this with your REVERSED_CLIENT_ID from GoogleService-Info.plist -->
-				<string>com.googleusercontent.apps.YOUR_CLIENT_ID</string>
+				<string>com.googleusercontent.apps.1046563751862-mj26jrf0u6at9cjjei9ftoa2mdnv1u2n</string>
+				<string>com.mediauth.mediauth_flutter</string>
 			</array>
 		</dict>
 	</array>
