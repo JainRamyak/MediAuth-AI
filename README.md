@@ -50,9 +50,9 @@ graph TD
 | **Agent Framework** | LangGraph (Python) |
 | **Backend API** | FastAPI (Python) |
 | **Frontend** | Flutter (Dart) |
-| **Database** | PostgreSQL + SQLAlchemy |
-| **Vector Store** | ChromaDB (Local) |
-| **Containerization** | Docker + docker-compose |
+| **Database** | Supabase (PostgreSQL) |
+| **Vector Store** | ChromaDB |
+| **Deployment** | Render (Docker Blueprint) |
 
 ---
 
