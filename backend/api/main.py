@@ -44,3 +44,19 @@ def health_check():
         "version": "0.1.0",
         "environment": os.getenv("ENVIRONMENT", "development")
     }
+
+@app.get("/debug/versions")
+def debug_versions():
+    import bcrypt
+    import passlib
+    import hashlib
+    try:
+        bcrypt_ver = getattr(bcrypt, "__version__", "unknown")
+    except:
+        bcrypt_ver = "error"
+        
+    return {
+        "bcrypt": bcrypt_ver,
+        "passlib": passlib.__version__,
+        "sha256_available": hashlib.sha256().name
+    }
