@@ -7,6 +7,7 @@ from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
 import os
+import hashlib
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -36,10 +37,13 @@ class TokenResponse(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # Pre-hash with SHA256 to handle passwords > 72 chars (bcrypt limit)
+    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+    return pwd_context.hash(pwd_hash)
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    pwd_hash = hashlib.sha256(plain.encode()).hexdigest()
+    return pwd_context.verify(pwd_hash, hashed)
 
 def create_token(user_id: str, email: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=TOKEN_EXPIRE_MINUTES)
