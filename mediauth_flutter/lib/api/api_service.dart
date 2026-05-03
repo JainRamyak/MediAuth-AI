@@ -202,4 +202,46 @@ class ApiService {
   /// Accepts an [AgentPromptData] object (same signature as before).
   static Future<void> updatePrompt(AgentPromptData agent) =>
       updatePromptDirect(agent.key, agent.systemPrompt, agent.userTemplate);
+
+  // ── History ─────────────────────────────────────────────────────────────────
+
+  /// GET /api/v1/authorize?limit=50
+  /// Returns the list of all past authorization requests from the database.
+  static Future<List<Map<String, dynamic>>> fetchHistory({int limit = 50}) async {
+    final url = Uri.parse('$baseUrl/authorize?limit=$limit');
+    try {
+      final res = await http
+          .get(url, headers: _headers())
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) {
+        throw ApiException('Failed to load history', statusCode: res.statusCode);
+      }
+      final body = jsonDecode(res.body) as List<dynamic>;
+      return body.map((e) => e as Map<String, dynamic>).toList();
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error loading history: $e');
+    }
+  }
+
+  /// GET /api/v1/authorize/{auth_request_id}
+  /// Returns a single authorization request by its UUID.
+  static Future<Map<String, dynamic>> fetchAuthorizationById(String id) async {
+    final url = Uri.parse('$baseUrl/authorize/$id');
+    try {
+      final res = await http
+          .get(url, headers: _headers())
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode == 404) {
+        throw ApiException('Authorization not found', statusCode: 404);
+      }
+      if (res.statusCode != 200) {
+        throw ApiException('Failed to load authorization', statusCode: res.statusCode);
+      }
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error loading authorization: $e');
+    }
+  }
 }

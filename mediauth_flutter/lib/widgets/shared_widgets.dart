@@ -1,12 +1,22 @@
+// ─────────────────────────────────────────────────────────
+// widgets.dart  –  Medi UI Component Library (recoded)
+// ─────────────────────────────────────────────────────────
+
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/colors.dart';
 import '../theme/app_theme.dart';
 
-// ──────────────────────────────────────────────────────────────────────────────
-// STATUS PILLS — dot + label, 30px tall, border 0.5px
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── TYPOGRAPHY HELPERS ───────────────────────────────────
+
+TextStyle _inter(double size, FontWeight w, Color color, {double spacing = 0}) =>
+    GoogleFonts.inter(fontSize: size, fontWeight: w, color: color, letterSpacing: spacing);
+
+TextStyle _outfit(double size, FontWeight w, Color color, {double spacing = 0}) =>
+    GoogleFonts.outfit(fontSize: size, fontWeight: w, color: color, letterSpacing: spacing);
+
+// ─── STATUS PILL ──────────────────────────────────────────
 
 enum AuthStatus { approved, pending, denied, appealing, submitted }
 
@@ -16,93 +26,82 @@ class StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, bg, border, fg) = switch (status) {
-      AuthStatus.approved  => ('Approved',  C.green50,  C.green500, C.green700),
-      AuthStatus.pending   => ('Pending',   C.amber50,  C.amber500, C.amber700),
-      AuthStatus.denied    => ('Denied',    C.red50,    C.red500,   C.red700),
-      AuthStatus.appealing => ('Appealing', C.violet50, C.violet500,C.violet700),
-      AuthStatus.submitted => ('Submitted', C.blue50,   C.blue500,  C.blue700),
+    final (label, bg, dotColor, textColor) = switch (status) {
+      AuthStatus.approved  => ('Approved',  C.green50,  C.green500,  C.green800),
+      AuthStatus.pending   => ('Pending',   C.amber50,  C.amber500,  C.amber800),
+      AuthStatus.denied    => ('Denied',    C.red50,    C.red500,    C.red800),
+      AuthStatus.appealing => ('Appealing', C.violet50, C.violet500, C.violet800),
+      AuthStatus.submitted => ('Submitted', C.blue50,   C.blue500,   C.blue800),
     };
-    return Container(
-      height: 30,
+
+    final borderColor = dotColor.withValues(alpha: 0.35);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      height: 28,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: border.withValues(alpha: 0.4), width: 0.5),
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: borderColor, width: 0.75),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 6, height: 6,
-            decoration: BoxDecoration(
-              color: fg, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
           Text(label,
-            style: GoogleFonts.inter(
-              fontSize: 11, fontWeight: FontWeight.w600,
-              color: fg, letterSpacing: 0.2)),
+            style: _inter(11.5, FontWeight.w600, textColor, spacing: 0.1)),
         ],
       ),
     );
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// STEP PROGRESS BAR — segmented, replaces dot indicators
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── STEP HEADER ─────────────────────────────────────────
 
 class StepHeader extends StatelessWidget {
-  final int current; // 1-indexed
+  final int current;   // 1-indexed
   final int total;
   final String title;
-
-  const StepHeader({
-    super.key,
-    required this.current,
-    required this.total,
-    required this.title,
-  });
+  const StepHeader({super.key, required this.current, required this.total, required this.title});
 
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      // Segmented progress bar
       Row(
         children: List.generate(total, (i) {
-          final isDone   = i <= current - 1;
+          final filled = i < current;
           return Expanded(
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
+              duration: const Duration(milliseconds: 350),
+              curve: Curves.easeInOut,
               margin: EdgeInsets.only(right: i < total - 1 ? 4 : 0),
-              height: 4,
+              height: 3,
               decoration: BoxDecoration(
-                color: isDone ? C.teal500 : C.surf3,
+                color: filled ? C.teal500 : C.surf3,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           );
         }),
       ),
-      const SizedBox(height: 16),
-      Text('Step $current of $total',
-        style: GoogleFonts.inter(
-          fontSize: 12, fontWeight: FontWeight.w500,
-          color: C.teal600, letterSpacing: 0.3)),
-      const SizedBox(height: 4),
-      Text(title,
-        style: Theme.of(context).textTheme.headlineMedium),
+      const SizedBox(height: 14),
+      Text(
+        'Step $current of $total',
+        style: _inter(11, FontWeight.w600, C.teal600, spacing: 0.5),
+      ),
+      const SizedBox(height: 3),
+      Text(title, style: Theme.of(context).textTheme.headlineMedium),
     ],
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// SECTION LABEL
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── SECTION LABEL ───────────────────────────────────────
 
 class SectionLabel extends StatelessWidget {
   final String label;
@@ -111,20 +110,17 @@ class SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-    Icon(icon, size: 14, color: C.teal600),
-    const SizedBox(width: 6),
-    Text(label.toUpperCase(),
-      style: GoogleFonts.inter(
-        fontSize: 11, fontWeight: FontWeight.w600,
-        color: C.teal600, letterSpacing: 0.8)),
+    Icon(icon, size: 15, color: C.teal500),
+    const SizedBox(width: 7),
+    Text(label, style: _outfit(13, FontWeight.w600, C.teal700, spacing: -0.2)),
     const SizedBox(width: 10),
-    Expanded(child: Container(height: 0.5, color: C.surf3)),
+    Expanded(
+      child: Container(height: 0.5, color: C.surf3.withValues(alpha: 0.6)),
+    ),
   ]);
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// MEDI CARD — reusable card with optional left-accent
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── MEDI CARD ───────────────────────────────────────────
 
 class MediCard extends StatelessWidget {
   final Widget child;
@@ -132,60 +128,50 @@ class MediCard extends StatelessWidget {
   final Color? accentColor;
   final VoidCallback? onTap;
 
-  const MediCard({
-    super.key,
-    required this.child,
-    this.padding,
-    this.accentColor,
-    this.onTap,
-  });
+  const MediCard({super.key, required this.child, this.padding, this.accentColor, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final inner = Stack(
-      children: [
-        Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: C.surf0,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: C.surf3, width: 0.5),
-          ),
-          child: Padding(
-            padding: padding ?? const EdgeInsets.all(16),
+    Widget card = ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Stack(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: padding ?? const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: C.surf0,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: C.surf3.withValues(alpha: 0.6), width: 0.5),
+            ),
             child: child,
           ),
-        ),
-        if (accentColor != null)
-          Positioned(
-            left: 0, top: 0, bottom: 0,
-            child: Container(
-              width: 3,
-              decoration: BoxDecoration(
-                color: accentColor,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  bottomLeft: Radius.circular(16),
-                ),
-              ),
+          if (accentColor != null)
+            Positioned(
+              left: 0, top: 0, bottom: 0,
+              child: Container(width: 3, color: accentColor),
             ),
-          ),
-      ],
+        ],
+      ),
     );
+
     if (onTap != null) {
-      return InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: inner,
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          splashColor: C.teal50.withValues(alpha: 0.4),
+          highlightColor: Colors.transparent,
+          child: card,
+        ),
       );
     }
-    return inner;
+    return card;
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// CHIP INPUT FIELD
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── CHIP INPUT FIELD ────────────────────────────────────
 
 class ChipInputField extends StatefulWidget {
   final String label;
@@ -207,106 +193,106 @@ class ChipInputField extends StatefulWidget {
 
 class _ChipInputFieldState extends State<ChipInputField> {
   final _ctrl = TextEditingController();
+  final _focus = FocusNode();
 
   void _add(String val) {
     final t = val.trim();
-    if (t.isEmpty || widget.chips.contains(t)) {
-      _ctrl.clear(); return;
-    }
+    if (t.isEmpty || widget.chips.contains(t)) { _ctrl.clear(); return; }
     widget.onChanged([...widget.chips, t]);
     _ctrl.clear();
   }
 
   void _remove(String val) =>
-    widget.onChanged(widget.chips.where((c) => c != val).toList());
+      widget.onChanged(widget.chips.where((c) => c != val).toList());
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() { _ctrl.dispose(); _focus.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(widget.label,
-        style: GoogleFonts.inter(
-          fontSize: 13, fontWeight: FontWeight.w500,
-          color: C.textSecondary)),
+      Text(widget.label, style: _inter(13, FontWeight.w500, C.textSecondary)),
       const SizedBox(height: 6),
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: C.surf2,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: C.surf3, width: 0.5),
-        ),
-        child: Wrap(
-          spacing: 6, runSpacing: 6,
-          children: [
-            ...widget.chips.map((chip) => Container(
-              height: 32,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(
-                color: C.teal50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: C.teal500.withValues(alpha: 0.3)),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Text(chip,
-                  style: GoogleFonts.inter(
-                    fontSize: 13, fontWeight: FontWeight.w500,
-                    color: C.teal700)),
-                const SizedBox(width: 6),
-                GestureDetector(
-                  onTap: () => _remove(chip),
-                  child: Icon(Icons.close, size: 13, color: C.teal600),
-                ),
-              ]),
-            )),
-            SizedBox(
-              height: 32,
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                SizedBox(
-                  width: 120,
+      GestureDetector(
+        onTap: () => _focus.requestFocus(),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: C.surf2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _focus.hasFocus ? C.teal500 : C.surf3,
+              width: _focus.hasFocus ? 1 : 0.5,
+            ),
+          ),
+          child: Wrap(
+            spacing: 6, runSpacing: 6,
+            children: [
+              ...widget.chips.map((chip) => _Chip(chip, onRemove: () => _remove(chip))),
+              SizedBox(
+                height: 30,
+                child: IntrinsicWidth(
                   child: TextField(
-                    key: _textKey,
                     controller: _ctrl,
-                    style: GoogleFonts.inter(
-                      fontSize: 13, color: C.textPrimary),
+                    focusNode: _focus,
+                    style: _inter(13, FontWeight.w400, C.textPrimary),
                     decoration: InputDecoration(
                       hintText: widget.hint,
-                      hintStyle: GoogleFonts.inter(
-                        fontSize: 13, color: C.textTertiary),
+                      hintStyle: _inter(13, FontWeight.w400, C.textTertiary),
                       border: InputBorder.none,
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 8, horizontal: 4),
-                      filled: false,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                     ),
                     onSubmitted: _add,
                     textInputAction: TextInputAction.done,
+                    onChanged: (_) => setState(() {}),
                   ),
                 ),
-              ]),
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     ],
   );
-
-  final _textKey = GlobalKey();
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// AGENT STEP STATUS
-// ──────────────────────────────────────────────────────────────────────────────
+class _Chip extends StatelessWidget {
+  final String label;
+  final VoidCallback onRemove;
+  const _Chip(this.label, {required this.onRemove});
 
-enum AgentStepStatus { pending, active, complete, error }
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 30,
+    padding: const EdgeInsets.only(left: 10, right: 6),
+    decoration: BoxDecoration(
+      color: C.teal50,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: C.teal500.withValues(alpha: 0.25), width: 0.5),
+    ),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Text(label, style: _inter(12.5, FontWeight.w500, C.teal700)),
+      const SizedBox(width: 5),
+      GestureDetector(
+        onTap: onRemove,
+        child: Container(
+          width: 16, height: 16,
+          decoration: BoxDecoration(
+            color: C.teal500.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.close, size: 9, color: C.teal600),
+        ),
+      ),
+    ]),
+  );
+}
 
-// ──────────────────────────────────────────────────────────────────────────────
-// PRIMARY BUTTON
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── PRIMARY BUTTON ──────────────────────────────────────
 
 class PrimaryButton extends StatelessWidget {
   final String label;
@@ -315,52 +301,52 @@ class PrimaryButton extends StatelessWidget {
   final IconData? icon;
 
   const PrimaryButton({
-    super.key,
-    required this.label,
-    this.onPressed,
-    this.loading = false,
-    this.icon,
+    super.key, required this.label,
+    this.onPressed, this.loading = false, this.icon,
   });
 
   @override
-  Widget build(BuildContext context) => ElevatedButton(
-    onPressed: loading ? null : onPressed,
-    style: ElevatedButton.styleFrom(
-      backgroundColor: C.teal500,
-      disabledBackgroundColor: C.teal500.withValues(alpha: 0.6),
-      minimumSize: const Size(double.infinity, 52),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14)),
+  Widget build(BuildContext context) => SizedBox(
+    height: 52, width: double.infinity,
+    child: ElevatedButton(
+      onPressed: loading ? null : onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: C.teal500,
+        disabledBackgroundColor: C.teal500.withValues(alpha: 0.55),
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+      ),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        child: loading
+            ? const SizedBox(
+                key: ValueKey('loader'),
+                width: 20, height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+              )
+            : Row(
+                key: const ValueKey('label'),
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: 17, color: Colors.white),
+                    const SizedBox(width: 8),
+                  ],
+                  Text(label, style: _inter(15, FontWeight.w700, Colors.white)),
+                ],
+              ),
+      ),
     ),
-    child: loading
-      ? const SizedBox(
-          width: 22, height: 22,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.5, color: C.white))
-      : Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 18, color: C.white),
-              const SizedBox(width: 8),
-            ],
-            Text(label,
-              style: GoogleFonts.inter(
-                fontSize: 15, fontWeight: FontWeight.w700,
-                color: C.white)),
-          ],
-        ),
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// INFO BANNER
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── INFO BANNER ─────────────────────────────────────────
 
 class InfoBanner extends StatelessWidget {
   final String message;
   final Color bgColor;
-  final Color borderColor;
+  final Color accentColor;
   final Color textColor;
   final IconData? icon;
 
@@ -368,38 +354,50 @@ class InfoBanner extends StatelessWidget {
     super.key,
     required this.message,
     this.bgColor    = C.teal50,
-    this.borderColor = C.teal500,
+    this.accentColor = C.teal500,
     this.textColor  = C.teal700,
     this.icon,
   });
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(
-      horizontal: 14, vertical: 12),
-    decoration: BoxDecoration(
-      color: bgColor,
-      borderRadius: BorderRadius.circular(12),
-      border: Border(left: BorderSide(color: borderColor, width: 3)),
-    ),
-    child: Row(children: [
-      if (icon != null) ...[
-        Icon(icon, size: 16, color: borderColor),
-        const SizedBox(width: 10),
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(12),
+    child: Stack(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: accentColor.withValues(alpha: 0.25), width: 0.5),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (icon != null) ...[
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(icon, size: 15, color: accentColor),
+              ),
+              const SizedBox(width: 9),
+            ],
+            Expanded(
+              child: Text(message,
+                style: _inter(13, FontWeight.w500, textColor).copyWith(height: 1.45)),
+            ),
+          ]),
+        ),
+        Positioned(
+          left: 0, top: 0, bottom: 0,
+          child: Container(width: 3, color: accentColor),
+        ),
       ],
-      Expanded(
-        child: Text(message,
-          style: GoogleFonts.inter(
-            fontSize: 13, fontWeight: FontWeight.w500,
-            color: textColor, height: 1.4)),
-      ),
-    ]),
+    ),
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// TOP TOAST
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── TOAST ───────────────────────────────────────────────
+
+enum ToastKind { success, warning, error }
 
 void showMediToast(
   BuildContext context,
@@ -409,56 +407,46 @@ void showMediToast(
 }) {
   final overlay = Overlay.of(context);
   late OverlayEntry entry;
-
-  entry = OverlayEntry(builder: (_) => _ToastOverlay(
-    message: message,
-    kind: kind,
-    onDismiss: () => entry.remove(),
-    duration: duration,
-  ));
+  entry = OverlayEntry(
+    builder: (_) => _MediToast(
+      message: message,
+      kind: kind,
+      duration: duration,
+      onDismiss: () => entry.remove(),
+    ),
+  );
   overlay.insert(entry);
 }
 
-enum ToastKind { success, warning, error }
-
-class _ToastOverlay extends StatefulWidget {
+class _MediToast extends StatefulWidget {
   final String message;
   final ToastKind kind;
-  final VoidCallback onDismiss;
   final Duration duration;
-  const _ToastOverlay({
-    required this.message,
-    required this.kind,
-    required this.onDismiss,
-    required this.duration,
-  });
+  final VoidCallback onDismiss;
+  const _MediToast({required this.message, required this.kind, required this.duration, required this.onDismiss});
 
   @override
-  State<_ToastOverlay> createState() => _ToastOverlayState();
+  State<_MediToast> createState() => _MediToastState();
 }
 
-class _ToastOverlayState extends State<_ToastOverlay>
-    with SingleTickerProviderStateMixin {
+class _MediToastState extends State<_MediToast> with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   late Animation<Offset> _slide;
+  late Animation<double> _fade;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 280));
-    _slide = Tween<Offset>(
-      begin: const Offset(0, -1), end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 320));
+    _slide = Tween(begin: const Offset(0, -1), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
     _ctrl.forward();
-    // All toast kinds auto-dismiss; cap at 5 seconds for safety.
-    final dismissAfter = widget.duration > const Duration(seconds: 5)
-        ? const Duration(seconds: 5)
-        : widget.duration;
-    Future.delayed(dismissAfter, _dismiss);
+    int ms = widget.duration.inMilliseconds.clamp(0, 5000);
+    Future.delayed(Duration(milliseconds: ms), _dismiss);
   }
 
-  void _dismiss() async {
+  Future<void> _dismiss() async {
     await _ctrl.reverse();
     widget.onDismiss();
   }
@@ -468,44 +456,40 @@ class _ToastOverlayState extends State<_ToastOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final (bg, border, fg) = switch (widget.kind) {
-      ToastKind.success => (C.green50,  C.green500,  C.green700),
-      ToastKind.warning => (C.amber50,  C.amber500,  C.amber700),
-      ToastKind.error   => (C.red50,    C.red500,    C.red700),
+    final (bg, accent, fg, icon) = switch (widget.kind) {
+      ToastKind.success => (C.green50,  C.green500,  C.green800,  Icons.check_circle_rounded),
+      ToastKind.warning => (C.amber50,  C.amber500,  C.amber800,  Icons.warning_rounded),
+      ToastKind.error   => (C.red50,    C.red500,    C.red800,    Icons.error_rounded),
     };
+
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 16,
+      top: MediaQuery.of(context).padding.top + 14,
       left: 16, right: 16,
       child: SlideTransition(
         position: _slide,
-        child: Material(
-          color: Colors.transparent,
+        child: FadeTransition(
+          opacity: _fade,
           child: GestureDetector(
             onTap: _dismiss,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border(
-                  left: BorderSide(color: border, width: 3)),
-              ),
-              child: Row(children: [
-                Icon(
-                  widget.kind == ToastKind.success
-                    ? Icons.check_circle_rounded
-                    : widget.kind == ToastKind.warning
-                      ? Icons.warning_rounded
-                      : Icons.error_rounded,
-                  size: 16, color: fg),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(widget.message,
-                    style: GoogleFonts.inter(
-                      fontSize: 13, fontWeight: FontWeight.w600,
-                      color: fg)),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Stack(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                  decoration: BoxDecoration(
+                    color: bg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: accent.withValues(alpha: 0.25), width: 0.5),
+                  ),
+                  child: Row(children: [
+                    Icon(icon, size: 16, color: accent),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(widget.message, style: _inter(13, FontWeight.w600, fg))),
+                    Icon(Icons.close, size: 14, color: fg.withValues(alpha: 0.5)),
+                  ]),
                 ),
+                Positioned(left: 0, top: 0, bottom: 0,
+                  child: Container(width: 3, color: accent)),
               ]),
             ),
           ),
@@ -515,9 +499,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// SECTION CARD
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── SECTION CARD ────────────────────────────────────────
 
 class SectionCard extends StatelessWidget {
   final Widget child;
@@ -526,19 +508,20 @@ class SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: padding ?? const EdgeInsets.all(16),
+    width: double.infinity,
+    padding: padding ?? const EdgeInsets.all(18),
     decoration: BoxDecoration(
       color: C.surf0,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: C.surf3, width: 0.5),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: C.surf3.withValues(alpha: 0.6), width: 0.5),
     ),
     child: child,
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// AGENT STEP ROW — with animated connecting line
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── AGENT STEP ROW ──────────────────────────────────────
+
+enum AgentStepStatus { pending, active, complete, error }
 
 class AgentStepRow extends StatelessWidget {
   final String agentName;
@@ -546,6 +529,7 @@ class AgentStepRow extends StatelessWidget {
   final String? statusLabel;
   final String? outputSnippet;
   final bool isExpanded;
+  final bool isLast;
   final VoidCallback? onTap;
   final IconData? agentIcon;
 
@@ -556,62 +540,74 @@ class AgentStepRow extends StatelessWidget {
     this.statusLabel,
     this.outputSnippet,
     this.isExpanded = false,
+    this.isLast = false,
     this.onTap,
     this.agentIcon,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(children: [
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    behavior: HitTestBehavior.opaque,
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Left column: dot + connector
+        SizedBox(
+          width: 36,
+          child: Column(children: [
             _AgentDot(status, icon: agentIcon),
-            Container(width: 1.5, height: 44,
-              color: status == AgentStepStatus.complete
-                ? C.teal500.withValues(alpha: 0.3) : C.surf3),
+            if (!isLast)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Container(
+                  width: 1.5, height: 36,
+                  color: status == AgentStepStatus.complete
+                      ? C.teal500.withValues(alpha: 0.25) : C.surf3,
+                ),
+              ),
           ]),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 2),
-                  Text(agentName,
-                    style: GoogleFonts.inter(
-                      fontSize: 14, fontWeight: FontWeight.w600,
-                      color: status == AgentStepStatus.pending
-                        ? C.textTertiary : C.textPrimary)),
-                  if (statusLabel != null) ...[
-                    const SizedBox(height: 3),
-                    Text(statusLabel!,
-                      style: GoogleFonts.inter(
-                        fontSize: 12, color: _labelColor)),
-                  ],
-                  if (isExpanded && outputSnippet != null) ...[
-                    const SizedBox(height: 8),
-                    Container(
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(bottom: isLast ? 0 : 16, top: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  agentName,
+                  style: _inter(14, FontWeight.w600,
+                    status == AgentStepStatus.pending ? C.textTertiary : C.textPrimary),
+                ),
+                if (statusLabel != null) ...[
+                  const SizedBox(height: 3),
+                  Text(statusLabel!, style: _inter(12, FontWeight.w400, _labelColor)),
+                ],
+                if (isExpanded && outputSnippet != null) ...[
+                  const SizedBox(height: 8),
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: C.surf2,
-                        borderRadius: BorderRadius.circular(10)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: C.surf3, width: 0.5),
+                      ),
                       child: Text(outputSnippet!,
-                        style: AppTheme.monoStyle(
-                          color: C.textSecondary, size: 11)),
+                        style: AppTheme.monoStyle(color: C.textSecondary, size: 11)),
                     ),
-                  ],
+                  ),
                 ],
-              ),
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
 
   Color get _labelColor => switch (status) {
     AgentStepStatus.pending  => C.textTertiary,
@@ -629,45 +625,89 @@ class _AgentDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) => switch (status) {
     AgentStepStatus.pending => Container(
-      width: 36, height: 36,
+      width: 34, height: 34,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: C.surf2,
         border: Border.all(color: C.surf3, width: 1.5)),
-      child: Icon(icon ?? Icons.circle_outlined,
-        size: 16, color: C.textTertiary),
+      child: Icon(icon ?? Icons.radio_button_unchecked_rounded, size: 15, color: C.textTertiary),
     ),
-    AgentStepStatus.active => Stack(
-      alignment: Alignment.center,
-      children: [
-        SizedBox(
-          width: 36, height: 36,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.5,
-            valueColor: const AlwaysStoppedAnimation(C.amber500))),
-        Icon(icon ?? Icons.circle,
-          size: 14, color: C.amber600),
-      ],
+
+    AgentStepStatus.active => _PulseRing(
+      color: C.amber500,
+      child: Container(
+        width: 34, height: 34,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: C.amber50,
+          border: Border.all(color: C.amber500, width: 1.5),
+        ),
+        child: Icon(icon ?? Icons.more_horiz_rounded, size: 16, color: C.amber600),
+      ),
     ),
+
     AgentStepStatus.complete => Container(
-      width: 36, height: 36,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle, color: C.teal500),
-      child: Icon(icon ?? Icons.check,
-        size: 18, color: C.white),
+      width: 34, height: 34,
+      decoration: const BoxDecoration(shape: BoxShape.circle, color: C.teal500),
+      child: Icon(icon ?? Icons.check_rounded, size: 17, color: Colors.white),
     ),
+
     AgentStepStatus.error => Container(
-      width: 36, height: 36,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle, color: C.red500),
-      child: const Icon(Icons.close, size: 18, color: C.white),
+      width: 34, height: 34,
+      decoration: const BoxDecoration(shape: BoxShape.circle, color: C.red500),
+      child: const Icon(Icons.close_rounded, size: 17, color: Colors.white),
     ),
   };
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// PULSE RINGS ANIMATION
-// ──────────────────────────────────────────────────────────────────────────────
+// Lightweight inline pulse ring (no separate widget file needed)
+class _PulseRing extends StatefulWidget {
+  final Widget child;
+  final Color color;
+  const _PulseRing({required this.child, required this.color});
+
+  @override
+  State<_PulseRing> createState() => _PulseRingState();
+}
+
+class _PulseRingState extends State<_PulseRing> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat();
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _anim,
+    builder: (_, child) => Stack(alignment: Alignment.center, children: [
+      Opacity(
+        opacity: (1 - _anim.value).clamp(0, 0.4),
+        child: Transform.scale(
+          scale: 1 + _anim.value * 0.55,
+          child: Container(
+            width: 34, height: 34,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: widget.color, width: 1.5),
+            ),
+          ),
+        ),
+      ),
+      child!,
+    ]),
+    child: widget.child,
+  );
+}
+
+// ─── PULSE RINGS ─────────────────────────────────────────
 
 class PulseRings extends StatefulWidget {
   final Widget child;
@@ -680,50 +720,40 @@ class PulseRings extends StatefulWidget {
 
 class _PulseRingsState extends State<PulseRings> with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
-  
+
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200))..repeat();
-  }
-  
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))..repeat();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (context, child) {
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            _buildRing(0.0),
-            _buildRing(0.33),
-            _buildRing(0.66),
-            widget.child,
-          ],
-        );
-      },
-    );
-  }
+  void dispose() { _ctrl.dispose(); super.dispose(); }
 
-  Widget _buildRing(double delay) {
-    final val = (_ctrl.value + delay) % 1.0;
-    final scale = 1.0 + (val * 0.9);
-    final opacity = (1.0 - val) * 0.5;
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _ctrl,
+    builder: (_, child) => Stack(
+      alignment: Alignment.center,
+      children: [
+        _ring(0.00), _ring(0.33), _ring(0.66),
+        child!,
+      ],
+    ),
+    child: widget.child,
+  );
+
+  Widget _ring(double offset) {
+    final t = (_ctrl.value + offset) % 1.0;
     return Transform.scale(
-      scale: scale,
-      child: Container(
-        width: 120, height: 120,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: widget.color.withValues(alpha: opacity),
-            width: 2,
+      scale: 1.0 + t * 0.85,
+      child: Opacity(
+        opacity: (1 - t) * 0.45,
+        child: Container(
+          width: 120, height: 120,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: widget.color, width: 1.5),
           ),
         ),
       ),
@@ -731,34 +761,34 @@ class _PulseRingsState extends State<PulseRings> with SingleTickerProviderStateM
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// CONFETTI PAINTER — celebration dots (for Approved screen)
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── CONFETTI ────────────────────────────────────────────
 
 class ConfettiPainter extends CustomPainter {
-  final double progress; // 0→1
+  final double progress;
   final List<ConfettiDot> dots;
-
-  ConfettiPainter({required this.progress, required this.dots})
-    : super(repaint: null);
+  const ConfettiPainter({required this.progress, required this.dots});
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (final dot in dots) {
-      final y = dot.startY + (dot.speed * progress * size.height * 0.8);
-      final x = dot.startX * size.width +
-        sin(progress * dot.wobble * pi * 2) * 20;
-      final opacity = (1.0 - progress).clamp(0.0, 1.0);
+    for (final d in dots) {
+      final y = d.startY + d.speed * progress * size.height * 0.8;
+      final x = d.startX * size.width + sin(progress * d.wobble * pi * 2) * 18;
+      final opacity = (1 - progress).clamp(0.0, 1.0);
       final paint = Paint()
-        ..color = dot.color.withValues(alpha: opacity)
+        ..color = d.color.withValues(alpha: opacity * 0.85)
         ..style = PaintingStyle.fill;
-      if (dot.isCircle) {
-        canvas.drawCircle(Offset(x, y), dot.size, paint);
+      if (d.isCircle) {
+        canvas.drawCircle(Offset(x, y), d.size, paint);
       } else {
-        canvas.drawRect(
-          Rect.fromCenter(center: Offset(x, y),
-            width: dot.size, height: dot.size * 0.5),
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.rotate(progress * d.wobble);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset.zero, width: d.size * 2, height: d.size),
+            const Radius.circular(1)),
           paint);
+        canvas.restore();
       }
     }
   }
@@ -773,28 +803,25 @@ class ConfettiDot {
   final bool isCircle;
   const ConfettiDot({
     required this.startX, required this.startY, required this.speed,
-    required this.wobble, required this.size, required this.color,
-    required this.isCircle,
+    required this.wobble, required this.size, required this.color, required this.isCircle,
   });
 }
 
 List<ConfettiDot> generateConfetti() {
   final rng = Random(42);
   const colors = [C.teal400, C.green500, C.amber500, C.blue500, C.violet500];
-  return List.generate(30, (i) => ConfettiDot(
+  return List.generate(36, (i) => ConfettiDot(
     startX: rng.nextDouble(),
-    startY: -rng.nextDouble() * 100,
-    speed: 0.4 + rng.nextDouble() * 0.6,
+    startY: -rng.nextDouble() * 120,
+    speed: 0.35 + rng.nextDouble() * 0.65,
     wobble: 1 + rng.nextDouble() * 3,
-    size: 4 + rng.nextDouble() * 6,
+    size: 3 + rng.nextDouble() * 5,
     color: colors[i % colors.length],
     isCircle: rng.nextBool(),
   ));
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// FORM FIELD LABEL — consistent field label style
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── FIELD LABEL ─────────────────────────────────────────
 
 class FieldLabel extends StatelessWidget {
   final String label;
@@ -804,27 +831,17 @@ class FieldLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 6),
-    child: Row(
-      children: [
-        Text(label,
-          style: GoogleFonts.inter(
-            fontSize: 13, fontWeight: FontWeight.w500,
-            color: C.textSecondary)),
-        if (required) ...[
-          const SizedBox(width: 3),
-          Text('*',
-            style: GoogleFonts.inter(
-              fontSize: 13, color: C.red500,
-              fontWeight: FontWeight.w600)),
-        ],
+    child: Row(children: [
+      Text(label, style: _inter(13, FontWeight.w500, C.textSecondary)),
+      if (required) ...[
+        const SizedBox(width: 3),
+        Text('*', style: _inter(13, FontWeight.w600, C.red500)),
       ],
-    ),
+    ]),
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// EMPTY STATE — consistent empty placeholder
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── EMPTY STATE ─────────────────────────────────────────
 
 class EmptyStateView extends StatelessWidget {
   final IconData icon;
@@ -834,51 +851,89 @@ class EmptyStateView extends StatelessWidget {
   final VoidCallback? onAction;
 
   const EmptyStateView({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.actionLabel,
-    this.onAction,
+    super.key, required this.icon, required this.title, required this.subtitle,
+    this.actionLabel, this.onAction,
   });
 
   @override
   Widget build(BuildContext context) => Center(
     child: Padding(
-      padding: const EdgeInsets.all(40),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 72, height: 72,
-            decoration: const BoxDecoration(
-              color: C.surf2, shape: BoxShape.circle),
-            child: Icon(icon, size: 32, color: C.textTertiary),
-          ),
-          const SizedBox(height: 16),
-          Text(title,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              fontSize: 17, fontWeight: FontWeight.w700,
-              color: C.textPrimary)),
-          const SizedBox(height: 6),
-          Text(subtitle,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              fontSize: 14, color: C.textSecondary, height: 1.5)),
-          if (actionLabel != null && onAction != null) ...[
-            const SizedBox(height: 20),
-            TextButton.icon(
-              onPressed: onAction,
-              icon: const Icon(Icons.add_rounded, size: 18, color: C.teal600),
-              label: Text(actionLabel!,
-                style: GoogleFonts.inter(
-                  fontSize: 14, fontWeight: FontWeight.w600,
-                  color: C.teal600)),
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Container(
+          width: 66, height: 66,
+          decoration: const BoxDecoration(color: C.surf2, shape: BoxShape.circle),
+          child: Icon(icon, size: 30, color: C.textTertiary),
+        ),
+        const SizedBox(height: 14),
+        Text(title,
+          textAlign: TextAlign.center,
+          style: _inter(17, FontWeight.w700, C.textPrimary)),
+        const SizedBox(height: 5),
+        Text(subtitle,
+          textAlign: TextAlign.center,
+          style: _inter(13.5, FontWeight.w400, C.textSecondary).copyWith(height: 1.5)),
+        if (actionLabel != null && onAction != null) ...[
+          const SizedBox(height: 18),
+          TextButton.icon(
+            onPressed: onAction,
+            icon: const Icon(Icons.add_rounded, size: 16, color: C.teal600),
+            label: Text(actionLabel!,
+              style: _inter(13.5, FontWeight.w600, C.teal600)),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              backgroundColor: C.teal50,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(color: C.teal500.withValues(alpha: 0.3), width: 0.5),
+              ),
             ),
-          ],
+          ),
         ],
-      ),
+      ]),
     ),
+  );
+}
+
+// ─── FADE SLIDE ──────────────────────────────────────────
+
+class FadeSlide extends StatefulWidget {
+  final Widget child;
+  final Duration delay;
+  final Offset beginOffset;
+
+  const FadeSlide({
+    super.key,
+    required this.child,
+    this.delay = Duration.zero,
+    this.beginOffset = const Offset(0, 0.15),
+  });
+
+  @override
+  State<FadeSlide> createState() => _FadeSlideState();
+}
+
+class _FadeSlideState extends State<FadeSlide> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _fade;
+  late Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 550));
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slide = Tween(begin: widget.beginOffset, end: Offset.zero)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    Future.delayed(widget.delay, () { if (mounted) _ctrl.forward(); });
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: _fade,
+    child: SlideTransition(position: _slide, child: widget.child),
   );
 }

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -36,6 +37,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _obscure = true;
   bool _loading = false;
 
+  bool get _isOAuthCompletion => AuthService.instance.currentUser != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isOAuthCompletion) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showMediToast(context, 'You are a new user. Please complete your registration.', kind: ToastKind.warning);
+      });
+      final md = AuthService.instance.currentUser?.userMetadata;
+      if (md != null) {
+        final name = md['full_name'] ?? md['name'];
+        if (name != null) _nameCtrl.text = name.toString();
+      }
+    }
+  }
+
   void _pickDate() async {
     final dt = await showDatePicker(
       context: context,
@@ -51,6 +69,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ),
     );
     if (dt != null) setState(() => _dob = dt);
+  }
+
+  Future<void> _completeOAuthRegistration() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_dob == null) {
+      showMediToast(context, 'Please select your Date of Birth', kind: ToastKind.error);
+      return;
+    }
+    setState(() => _loading = true);
+
+    final result = await AuthService.instance.updateUserMetadata({
+      'full_name':        _nameCtrl.text.trim(),
+      'date_of_birth':   _dob!.toIso8601String(),
+      'insurer':         _insurer ?? '',
+      'policy_number':   _policyCtrl.text.trim(),
+      'profile_completed': true,
+    });
+
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    if (!result.success) {
+      showMediToast(context, result.errorMessage ?? 'Failed to update profile.', kind: ToastKind.error);
+      return;
+    }
+    widget.onSignUpSuccess();
   }
 
   Future<void> _signUp() async {
@@ -121,10 +165,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: C.textPrimary,
-      body: SafeArea(
-        bottom: false,
-        child: Column(children: [
+      body: Stack(
+        children: [
+          // ── Premium Gradient Background ─────────────────────────────────────
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF0F172A), // Deep Slate
+                  Color(0xFF005F4F), // Deep Teal
+                  Color(0xFF0F172A),
+                ],
+              ),
+            ),
+          ),
+
+          SafeArea(
+            bottom: false,
+            child: Column(children: [
           // ── Header ────────────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
@@ -142,12 +202,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Create Account',
-                      style: GoogleFonts.inter(
-                        fontSize: 20, fontWeight: FontWeight.w700,
+                      style: GoogleFonts.outfit(
+                        fontSize: 22, fontWeight: FontWeight.w700,
                         color: C.white, letterSpacing: -0.3)),
                     Text('MediAuth Patient Portal',
                       style: GoogleFonts.inter(
-                        fontSize: 12, color: C.ink300)),
+                        fontSize: 13, color: C.teal50)),
                   ],
                 ),
                 const Spacer(),
@@ -170,11 +230,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
           // ── Form ──────────────────────────────────────────────────────────
           Expanded(
-            child: Container(
-              decoration: const BoxDecoration(
-                color: C.surf0,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: C.surf0.withValues(alpha: 0.95), // minimal glass
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                    border: Border(
+                      top: BorderSide(color: Colors.white.withValues(alpha: 0.5), width: 1),
+                    ),
+                  ),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 28, 24, 40),
                 child: Form(
@@ -183,8 +250,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // ── Personal ──────────────────────────────────────────
-                      SectionLabel('Personal Information',
-                        Icons.person_outline_rounded),
+                      SectionLabel('About You',
+                        Icons.face_retouching_natural_rounded),
                       const SizedBox(height: 12),
 
                       TextFormField(
@@ -233,19 +300,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 24),
 
                       // ── Insurance ─────────────────────────────────────────
-                      SectionLabel('Health Coverage',
-                        Icons.health_and_safety_outlined),
+                      SectionLabel('Insurance Details',
+                        Icons.verified_user_rounded),
                       const SizedBox(height: 12),
 
                       DropdownButtonFormField<String>(
                         initialValue: _insurer,
+                        isExpanded: true,
                         icon: const Icon(Icons.keyboard_arrow_down_rounded,
                           color: C.textTertiary),
                         decoration: const InputDecoration(
                           labelText: 'Insurance Provider',
                           prefixIcon: Icon(Icons.business_outlined, size: 20)),
                         items: _insurers.map((i) => DropdownMenuItem(
-                          value: i, child: Text(i))).toList(),
+                          value: i,
+                          child: Text(i, overflow: TextOverflow.ellipsis, maxLines: 1),
+                        )).toList(),
                         onChanged: (v) => setState(() => _insurer = v),
                         validator: (v) => v == null ? 'Required' : null,
                       ),
@@ -262,94 +332,103 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      // ── Account ───────────────────────────────────────────
-                      SectionLabel('Account Credentials',
-                        Icons.email_outlined),
-                      const SizedBox(height: 12),
+                      if (!_isOAuthCompletion) ...[
+                        // ── Account ───────────────────────────────────────────
+                        SectionLabel('Secure Your Account',
+                          Icons.lock_person_rounded),
+                        const SizedBox(height: 12),
 
-                      TextFormField(
-                        controller: _emailCtrl,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          labelText: 'Email Address',
-                          hintText: 'e.g. margaret@example.com',
-                          prefixIcon: Icon(Icons.email_outlined, size: 20)),
-                        validator: (v) => v!.isEmpty ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 12),
-
-                      TextFormField(
-                        controller: _passCtrl,
-                        obscureText: _obscure,
-                        textInputAction: TextInputAction.done,
-                        onFieldSubmitted: (_) => _signUp(),
-                        decoration: InputDecoration(
-                          labelText: 'Password',
-                          hintText: 'Minimum 8 characters',
-                          prefixIcon: const Icon(
-                            Icons.lock_outline_rounded, size: 20),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscure
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                              color: C.textTertiary, size: 20),
-                            onPressed: () =>
-                              setState(() => _obscure = !_obscure),
-                          ),
+                        TextFormField(
+                          controller: _emailCtrl,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'Email Address',
+                            hintText: 'e.g. margaret@example.com',
+                            prefixIcon: Icon(Icons.email_outlined, size: 20)),
+                          validator: (v) => v!.isEmpty ? 'Required' : null,
                         ),
-                        validator: (v) => v!.isEmpty ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 32),
+                        const SizedBox(height: 12),
+
+                        TextFormField(
+                          controller: _passCtrl,
+                          obscureText: _obscure,
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _signUp(),
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            hintText: 'Minimum 8 characters',
+                            prefixIcon: const Icon(
+                              Icons.lock_outline_rounded, size: 20),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscure
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                                color: C.textTertiary, size: 20),
+                              onPressed: () =>
+                                setState(() => _obscure = !_obscure),
+                            ),
+                          ),
+                          validator: (v) => v!.isEmpty ? 'Required' : null,
+                        ),
+                        const SizedBox(height: 32),
+                      ],
 
                       PrimaryButton(
-                        label: 'Create Account',
-                        onPressed: _loading ? null : _signUp,
+                        label: _isOAuthCompletion ? 'Complete Sign Up' : 'Create Account',
+                        onPressed: _loading ? null : (_isOAuthCompletion ? _completeOAuthRegistration : _signUp),
                         loading: _loading,
                         icon: Icons.check_circle_outline_rounded,
                       ),
                       const SizedBox(height: 12),
 
-                      // Google Sign-Up
-                      GestureDetector(
-                        onTap: _loading ? null : _googleSignUp,
-                        child: Container(
-                          height: 52,
-                          decoration: BoxDecoration(
-                            color: C.surf1,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: C.surf3),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text('G',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF4285F4))),
-                              const SizedBox(width: 10),
-                              Text('Sign up with Google',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14, fontWeight: FontWeight.w600,
-                                  color: C.textPrimary)),
-                            ],
+                      if (!_isOAuthCompletion) ...[
+                        // Google Sign-Up
+                        GestureDetector(
+                          onTap: _loading ? null : _googleSignUp,
+                          child: Container(
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: C.surf1,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: C.surf3),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text('G',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF4285F4))),
+                                const SizedBox(width: 10),
+                                Text('Sign up with Google',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14, fontWeight: FontWeight.w600,
+                                    color: C.textPrimary)),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 16),
+                      ],
 
                       SizedBox(
                         width: double.infinity, height: 52,
                         child: OutlinedButton(
-                          onPressed: widget.onSignIn,
+                          onPressed: () async {
+                            if (_isOAuthCompletion) {
+                              await AuthService.instance.signOut();
+                            }
+                            widget.onSignIn();
+                          },
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: C.surf3, width: 1),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14)),
                           ),
-                          child: Text('Already have an account? Sign in',
+                          child: Text(_isOAuthCompletion ? 'Cancel & Sign Out' : 'Already have an account? Sign in',
                             style: GoogleFonts.inter(
                               fontSize: 14, fontWeight: FontWeight.w600,
                               color: C.textPrimary)),
@@ -361,7 +440,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
             ),
           ),
-        ]),
+        ),
+      ),
+          ],
+        ),
+      ),
+        ],
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/colors.dart';
@@ -56,7 +57,13 @@ class _LoginScreenState extends State<LoginScreen>
 
     if (!mounted) return;
     if (!result.success) {
-      setState(() { _loading = false; _error = result.errorMessage; });
+      if (result.errorMessage == 'EMAIL_NOT_FOUND') {
+        setState(() { _loading = false; _error = null; });
+        showMediToast(context, 'Account not found. Please sign up first.', kind: ToastKind.warning);
+        widget.onSignUp();
+      } else {
+        setState(() { _loading = false; _error = result.errorMessage; });
+      }
       return;
     }
     setState(() { _loading = false; _showSuccess = true; });
@@ -91,26 +98,46 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: C.textPrimary,
-      body: Column(children: [
-        // ── Top hero 36% ──────────────────────────────────────────────────────
-        Expanded(
-          flex: 36,
-          child: SafeArea(
-            bottom: false,
-            child: Stack(
-              children: [
-                Positioned.fill(child: CustomPaint(
-                  painter: _DotGridPainter())),
-                Center(
+      body: Stack(
+        children: [
+          // ── Premium Gradient Background ─────────────────────────────────────
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF0F172A), // Deep Slate
+                  Color(0xFF005F4F), // Deep Teal
+                  Color(0xFF0F172A),
+                ],
+              ),
+            ),
+          ),
+          Positioned.fill(child: CustomPaint(painter: _DotGridPainter())),
+
+          Column(children: [
+            // ── Top hero 36% ──────────────────────────────────────────────────
+            Expanded(
+              flex: 36,
+              child: SafeArea(
+                bottom: false,
+                child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
                         width: 60, height: 60,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: C.teal500,
                           shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: C.teal500.withValues(alpha: 0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            )
+                          ],
                         ),
                         child: const Icon(
                           Icons.health_and_safety_rounded,
@@ -118,13 +145,13 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                       const SizedBox(height: 14),
                       Text('MediAuth AI',
-                        style: GoogleFonts.inter(
-                          fontSize: 24, fontWeight: FontWeight.w700,
+                        style: GoogleFonts.outfit(
+                          fontSize: 28, fontWeight: FontWeight.w700,
                           color: C.white, letterSpacing: -0.5)),
                       const SizedBox(height: 4),
                       Text('Patient Portal',
                         style: GoogleFonts.inter(
-                          fontSize: 13, color: C.ink300,
+                          fontSize: 14, color: C.teal50,
                           fontWeight: FontWeight.w400)),
                       const SizedBox(height: 16),
                       // Trust badge
@@ -140,37 +167,48 @@ class _LoginScreenState extends State<LoginScreen>
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.verified_user_rounded,
-                              size: 13,
-                              color: C.teal400),
+                            const Icon(Icons.verified_user_rounded,
+                              size: 13, color: C.teal400),
                             const SizedBox(width: 6),
                             Text('HIPAA Compliant · 50K+ Patients',
                               style: GoogleFonts.inter(
                                 fontSize: 11, fontWeight: FontWeight.w500,
-                                color: C.ink300)),
+                                color: C.teal50)),
                           ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-
-        // ── Bottom form 64% ───────────────────────────────────────────────────
-        Expanded(
-          flex: 64,
-          child: SlideTransition(
-            position: _sheetAnim,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: C.surf0,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+            ),
+
+            // ── Bottom form 64% ───────────────────────────────────────────────
+            Expanded(
+              flex: 64,
+              child: SlideTransition(
+                position: _sheetAnim,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: C.surf0.withValues(alpha: 0.95), // minimal glass
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                        border: Border(
+                          top: BorderSide(color: Colors.white.withValues(alpha: 0.5), width: 1),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 40,
+                            offset: const Offset(0, -10),
+                          )
+                        ],
+                      ),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(28, 8, 28, 32),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -188,10 +226,10 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
 
                       Text('Welcome back',
-                        style: GoogleFonts.inter(
-                          fontSize: 26, fontWeight: FontWeight.w800,
+                        style: GoogleFonts.outfit(
+                          fontSize: 28, fontWeight: FontWeight.w800,
                           color: C.textPrimary, letterSpacing: -0.5)),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Text('Sign in to track your health authorizations.',
                         style: GoogleFonts.inter(
                           fontSize: 14, color: C.textSecondary, height: 1.4)),
@@ -206,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen>
                               child: InfoBanner(
                                 message: _error!,
                                 bgColor: C.red50,
-                                borderColor: C.red500,
+                                accentColor: C.red500,
                                 textColor: C.red700,
                                 icon: Icons.error_outline_rounded),
                             )
@@ -266,26 +304,11 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
 
                       // Sign in CTA
-                      SizedBox(
-                        width: double.infinity, height: 52,
-                        child: ElevatedButton(
-                          onPressed: _loading ? null : _login,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: C.teal500,
-                            disabledBackgroundColor: C.teal500,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
-                          ),
-                          child: _loading
-                            ? const SizedBox(
-                                width: 20, height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5, color: C.white))
-                            : Text('Sign in',
-                                style: GoogleFonts.inter(
-                                  fontSize: 16, fontWeight: FontWeight.w700,
-                                  color: C.white)),
-                        ),
+                      PrimaryButton(
+                        label: 'Sign In',
+                        loading: _loading || _showSuccess,
+                        icon: Icons.arrow_forward_rounded,
+                        onPressed: _login,
                       ),
 
                       // Success pill
@@ -392,8 +415,13 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
         ),
-      ]),
-    );
+      ),
+      ), // Closes Expanded
+          ], // Closes Column children
+        ), // Closes Main Column
+      ], // Closes Stack children
+    ), // Closes Stack
+    ); // Closes Scaffold
   }
 }
 

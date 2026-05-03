@@ -1,64 +1,33 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/colors.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
-import 's04_patient_info.dart';
-import 's06_review_submit.dart';
-import 's06b_prompt_customization.dart';
 import '../api/api_service.dart';
+import 's04_patient_info.dart';
+import 's06b_prompt_customization.dart';
 
-// ── Agent definitions — plain language per userflow Screen 7 ──────────────────
-// UF Screen 7 shows 6 visible steps (no appeal step shown during normal processing)
-// Agent $5 = done at seconds (simulated frontend timer — API is a single call)
+// ── Agent UI definitions (icons + timing — no fake outputs) ─────────────────
+// Order follows README architecture exactly:
+// 1. Intake & History → 2. Medical Analysis →
+// [Parallel] 3a. Policy Intelligence & 3b. Claims Validation →
+// 4. Justification Writer → 5. Submission & Monitor →
+// [If Denied] 6. Denial & Appeal Agent
 
-const _agents = [
-  (
-    Icons.manage_search_rounded,
-    'Reading your patient information...',
-    'Extracting your details and organising them for review...',
-    'Patient profile structured. Name, insurer, diagnoses and history confirmed.',
-    3, // done at ~3s
-  ),
-  (
-    Icons.biotech_outlined,
-    'Identifying your medical codes...',
-    'Matching your diagnoses and treatment to the correct medical codes...',
-    'Medical codes identified. Coverage eligibility confirmed for your treatment.',
-    7, // done at ~7s
-  ),
-  (
-    Icons.policy_outlined,
-    "Checking your insurer's policy rules...",
-    "Retrieving your insurer's authorisation requirements...",
-    'Policy checked. Prior authorisation required — criteria identified.',
-    11, // done at ~11s
-  ),
-  (
-    Icons.draw_outlined,
-    'Writing your authorisation letter...',
-    'Drafting a formal letter citing clinical evidence and guidelines...',
-    'Authorisation letter complete. 847 words. Clinical necessity well supported.',
-    20, // done at ~20s (longest — UF: "letter writing takes longest")
-  ),
-  (
-    Icons.send_rounded,
-    'Submitting to your insurer...',
-    'Sending your request directly to the insurer portal...',
-    'Submitted successfully. Reference number issued. Awaiting decision.',
-    24, // done at ~24s
-  ),
-  (
-    Icons.receipt_long_outlined,
-    'Validating your billing codes...',
-    'Cross-checking all codes for accuracy and completeness...',
-    'All codes valid. Denial risk: LOW. No missing documents.',
-    28, // done at ~28s
-  ),
+const _agentDefs = [
+  (Icons.manage_search_rounded,  'Intake & History',          'Extracting patient profile and organising all details…',         5),
+  (Icons.biotech_outlined,       'Medical Analysis',          'Assigning ICD-10 and CPT codes to your diagnoses and treatment…', 10),
+  (Icons.policy_outlined,        'Policy Intelligence',       "Checking your insurer's authorisation rules and coverage…",       16),
+  (Icons.receipt_long_outlined,  'Claims Validation',         'Pre-scanning billing codes to minimise risk — running in parallel…', 19),
+  (Icons.draw_outlined,          'Justification Writer',      'Drafting the formal prior authorisation letter…',                 24),
+  (Icons.send_rounded,           'Submission Agent',          'Submitting your request and awaiting insurer decision…',          28),
+  (Icons.gavel_rounded,          'Denial & Appeal Agent',     'Reviewing denial and preparing a counter-argument…',              0), // shown only if denied
 ];
 
-// ── S07 Agent Pipeline ────────────────────────────────────────────────────────
+// ── Screen 7 — AI Processing ─────────────────────────────────────────────────
 
 class AgentPipelineScreen extends StatefulWidget {
   final PatientFormData patient;
@@ -82,489 +51,363 @@ class AgentPipelineScreen extends StatefulWidget {
 
 class _AgentPipelineScreenState extends State<AgentPipelineScreen> {
   int _done = 0;
-  final _expandedAgents = <int>{};
-  final _log = <_LogEntry>[];
   bool _timedOut = false;
-  bool _hardTimeout = false; // UF: up to 60s — after that show error
-  int _elapsedSeconds = 0;
-  Timer? _clockTimer;
-
-  Map<String, dynamic>? _apiResult;
+  bool _hardTimeout = false;
+  int  _elapsed = 0;
+  Timer? _clock;
+  Map<String, dynamic>? _result;
   bool _apiDone = false;
+  List<dynamic> _auditTrail = [];
 
   @override
   void initState() {
     super.initState();
     _startClock();
-    _executeApiCall();
-    _runPipeline();
+    _runAnimation();
+    _callApi();
   }
+
+  // ── Build the patient text for the API ────────────────────────────────────
 
   String _buildPatientText() {
-    final f = widget.patient;
-    return 'Name: ${f.fullName}\nDOB: ${f.dateOfBirth?.toIso8601String()}\nInsurer: ${f.insurer}\nPolicy: ${f.policyNumber}\nDiagnoses: ${f.diagnoses.join(', ')}\nMedications: ${f.medications.join(', ')}\nHistory: ${f.medicalHistory}';
+    final p = widget.patient;
+    final dob = p.dateOfBirth;
+    final dobStr = dob != null
+        ? '${dob.year}-${dob.month.toString().padLeft(2,'0')}-${dob.day.toString().padLeft(2,'0')}'
+        : 'Unknown';
+    return '''Patient: ${p.fullName}
+DOB: $dobStr
+Insurance: ${p.insurer}
+Policy: ${p.policyNumber}
+Member ID: ${p.memberId}
+Diagnoses: ${p.diagnoses.join(', ')}
+Medications: ${p.medications.join(', ')}
+Allergies: ${p.allergies.isEmpty ? 'None' : p.allergies}
+Medical History: ${p.medicalHistory.isEmpty ? 'None provided' : p.medicalHistory}
+Treating Physician: ${p.doctorName.isEmpty ? 'Not specified' : p.doctorName}''';
   }
 
-  Future<void> _executeApiCall() async {
+  // ── Real API call ─────────────────────────────────────────────────────────
+
+  Future<void> _callApi() async {
     try {
+      // Save any edited prompts first
       if (widget.payload?.editedAgents != null) {
-        for (final agent in widget.payload!.editedAgents) {
-          await ApiService.updatePrompt(agent);
+        for (final ag in widget.payload!.editedAgents) {
+          await ApiService.updatePrompt(ag);
         }
       }
 
-      final pText = _buildPatientText();
+      var pText = _buildPatientText();
       final ctx = widget.payload?.customContext ?? '';
-      final fullText = ctx.isNotEmpty ? '$pText\nContext:\n$ctx' : pText;
+      if (ctx.isNotEmpty) pText = '$ctx\n\n$pText';
 
-      final treatmentStr = widget.treatment.requestedTreatment + 
-          (widget.treatment.whyNeeded.isNotEmpty ? '\nReason: ${widget.treatment.whyNeeded}' : '');
+      final treatText = widget.treatment.requestedTreatment +
+          (widget.treatment.whyNeeded.isNotEmpty
+              ? '\nReason: ${widget.treatment.whyNeeded}' : '');
 
-      final res = await ApiService.authorizeTreatment(fullText, treatmentStr);
-      
+      final res = await ApiService.authorizeTreatment(pText, treatText);
+
+      // Extract real audit trail from API response
+      _auditTrail = res['audit_trail'] as List<dynamic>? ?? [];
+
+      // Persist full result to local history
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final hist  = prefs.getStringList('auth_history') ?? [];
+        final entry = {
+          ...res,
+          'patient_text':        pText,         // stored for appeal re-submission
+          'requested_treatment': treatText,     // stored for appeal re-submission
+          'insurer':             widget.patient.insurer,
+          'policy_number':       widget.patient.policyNumber,
+          'created_at':          DateTime.now().toIso8601String(),
+        };
+        hist.insert(0, jsonEncode(entry));
+        if (hist.length > 50) hist.removeLast();
+        await prefs.setStringList('auth_history', hist);
+      } catch (_) {}
+
       if (!mounted) return;
-      setState(() {
-         _apiResult = res;
-         _apiDone = true;
-      });
+      setState(() { _result = res; _apiDone = true; });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-         _hardTimeout = true;
-         _clockTimer?.cancel();
-      });
+      setState(() { _hardTimeout = true; _clock?.cancel(); });
     }
   }
 
-  void _checkAndNavigate() async {
-    while (!_apiDone && !_hardTimeout) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (!mounted || _hardTimeout) return;
-    }
-    if (_hardTimeout || !mounted) return;
-
-    final result = _apiResult ?? {};
-    final status = result['workflow_status']?.toString().toLowerCase() ?? '';
-
-    // Any status containing 'denied', 'appeal', or 'escalat' → denied screen
-    if (status.contains('denied') ||
-        status.contains('appeal') ||
-        status.contains('escalat')) {
-      widget.onDenied(result);
-    } else {
-      widget.onApproved(result);
-    }
-  }
+  // ── Timed animation (purely cosmetic, NOT showing fake data) ──────────────
 
   void _startClock() {
-    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      setState(() => _elapsedSeconds++);
-
-      // Warn at 45s — real AI pipeline can take 45–90s
-      if (_elapsedSeconds == 45 && _done < _agents.length) {
+      setState(() => _elapsed++);
+      if (_elapsed == 45 && _done < _agentDefs.length) {
         setState(() => _timedOut = true);
       }
-
-      // Hard timeout at 180s — if API hasn't responded something is wrong
-      if (_elapsedSeconds >= 180 && _done < _agents.length) {
-        setState(() => _hardTimeout = true);
-        _clockTimer?.cancel();
+      if (_elapsed >= 180) {
+        setState(() { _hardTimeout = true; _clock?.cancel(); });
       }
     });
   }
 
-  void _runPipeline() {
-    for (int i = 0; i < _agents.length; i++) {
-      final agentIndex = i;
-      final doneAt = _agents[i].$5;
-      Timer(Duration(seconds: doneAt), () {
+  // Agents 1–6 animate during the pipeline; Agent 7 (Denial & Appeal) is
+  // shown by s09_denied.dart and does NOT appear in the normal animation.
+  static const _animatedAgentCount = 6;
+
+  void _runAnimation() {
+    for (int i = 0; i < _animatedAgentCount; i++) {
+      final idx = i;
+      Timer(Duration(seconds: _agentDefs[i].$4), () {
         if (!mounted) return;
         setState(() {
-          _done = agentIndex + 1;
-          _log.add(_LogEntry(_ts(),
-              '${_agents[agentIndex].$2} ${_agents[agentIndex].$4}'));
-          _timedOut = false; 
+          _done = idx + 1;
+          _timedOut = false;
         });
-
-        if (agentIndex == _agents.length - 1) {
-          Future.delayed(const Duration(milliseconds: 800), () {
-            if (!mounted) return;
-            _checkAndNavigate();
-          });
+        if (idx == _animatedAgentCount - 1) {
+          Future.delayed(const Duration(milliseconds: 600), _navigate);
         }
       });
     }
   }
 
-  String _ts() {
-    final n = DateTime.now();
-    return '${n.hour.toString().padLeft(2, '0')}:'
-        '${n.minute.toString().padLeft(2, '0')}:'
-        '${n.second.toString().padLeft(2, '0')}';
+  Future<void> _navigate() async {
+    // Wait for the real API result before navigating
+    while (!_apiDone && !_hardTimeout) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (!mounted || _hardTimeout) return;
+    }
+    if (!mounted || _hardTimeout) return;
+    final res = _result ?? {};
+    final status = res['workflow_status']?.toString().toLowerCase() ?? '';
+    if (status.contains('denied') || status.contains('appeal') || status.contains('escalat')) {
+      widget.onDenied(res);
+    } else {
+      widget.onApproved(res);
+    }
   }
 
-  AgentStepStatus _status(int i) {
+  void _retry() {
+    setState(() {
+      _done = 0; _timedOut = false; _hardTimeout = false;
+      _elapsed = 0; _apiDone = false; _result = null; _auditTrail = [];
+    });
+    _clock?.cancel();
+    _startClock(); _runAnimation(); _callApi();
+  }
+
+  @override
+  void dispose() { _clock?.cancel(); super.dispose(); }
+
+  bool get _allDone => _done == _animatedAgentCount;
+
+  // Progress is time-based (0–28 seconds maps to 0–100%)
+  double get _progress => (_elapsed / 28.0).clamp(0.0, 1.0);
+
+  AgentStepStatus _statusFor(int i) {
     if (i < _done) return AgentStepStatus.complete;
     if (i == _done) return AgentStepStatus.active;
     return AgentStepStatus.pending;
   }
 
-  // UF: Progress is time-based for smooth animation
-  double get _progress => (_elapsedSeconds / 28.0).clamp(0.0, 1.0);
+  // ── Look up real agent output from the API audit trail ────────────────────
 
-  @override
-  void dispose() {
-    _clockTimer?.cancel();
-    super.dispose();
+  String? _realOutputFor(int i) {
+    if (_auditTrail.isEmpty) return null;
+    // Map animation index → audit_trail agent key (matches LangGraph node names)
+    const indexToKey = ['intake', 'medical_analysis', 'policy', 'claims', 'justification', 'submission', 'appeal'];
+    if (i >= indexToKey.length) return null;
+    final key = indexToKey[i];
+    try {
+      final entry = _auditTrail.firstWhere(
+        (e) => (e as Map<String, dynamic>)['agent'] == key,
+        orElse: () => null,
+      );
+      if (entry == null) return null;
+      final m = entry as Map<String, dynamic>;
+      final detail = m['detail']?.toString() ?? '';
+      final status = m['status']?.toString() ?? '';
+      return detail.isNotEmpty ? '$status: $detail' : status;
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final allDone = _done == _agents.length;
-
-    // UF Error state: "Our AI encountered an issue. Please try again." + Retry
-    if (_hardTimeout) {
-      return Scaffold(
-        backgroundColor: C.surf1,
-        appBar: AppBar(
-          backgroundColor: C.surf0,
-          surfaceTintColor: Colors.transparent,
-          title: Text('Processing Request',
-              style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: C.textPrimary)),
-          automaticallyImplyLeading: false,
-        ),
-        body: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: const BoxDecoration(
-                    color: C.red50, shape: BoxShape.circle),
-                child:
-                    const Icon(Icons.error_outline_rounded, size: 36, color: C.red500),
-              ),
-              const SizedBox(height: 20),
-              Text('Our AI encountered an issue.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: C.textPrimary)),
-              const SizedBox(height: 8),
-              Text('Please try again.',
-                  style: GoogleFonts.inter(
-                      fontSize: 14, color: C.textSecondary)),
-              const SizedBox(height: 32),
-              PrimaryButton(
-                label: 'Retry',
-                icon: Icons.refresh_rounded,
-                onPressed: () {
-                  setState(() {
-                    _done = 0;
-                    _expandedAgents.clear();
-                    _log.clear();
-                    _timedOut = false;
-                    _hardTimeout = false;
-                    _elapsedSeconds = 0;
-                    _apiDone = false;
-                    _apiResult = null;
-                  });
-                  _executeApiCall();
-                  _runPipeline();
-                  _startClock();
-                },
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    if (_hardTimeout) return _ErrorScreen(onRetry: _retry);
 
     return Scaffold(
       backgroundColor: C.surf1,
       appBar: AppBar(
         backgroundColor: C.surf0,
         surfaceTintColor: Colors.transparent,
-        title: Text('Processing Request',
-            style: GoogleFonts.inter(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: C.textPrimary)),
         automaticallyImplyLeading: false,
+        title: Text('Processing Request',
+          style: GoogleFonts.inter(
+            fontSize: 16, fontWeight: FontWeight.w700, color: C.textPrimary)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Hero heading ───────────────────────────────────────────────
-            Text(
-              allDone
-                  ? 'All Done!'
-                  : 'AI Agents Working on Your Authorization...',
-              style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: C.textPrimary,
-                  letterSpacing: -0.3,
-                  height: 1.2),
-            ),
+            // ── Hero ──────────────────────────────────────────────────────
+            Text(_allDone ? 'Processing Complete' : 'AI Agents Working…',
+              style: GoogleFonts.outfit(
+                fontSize: 26, fontWeight: FontWeight.w800,
+                color: C.textPrimary, letterSpacing: -0.5)),
             const SizedBox(height: 6),
-            Text(
-              allDone
-                  ? 'Taking you to your result now...'
-                  // UF: "Sit tight — this takes about 20 seconds. You do not need to do anything."
-                  : 'Sit tight — this takes about 20 seconds. You do not need to do anything.',
-              style: GoogleFonts.inter(
-                  fontSize: 14, color: C.textSecondary, height: 1.5),
-            ),
-            const SizedBox(height: 20),
+            Text(_allDone
+                ? 'Finalizing your authorization response…'
+                : 'Sit tight — this takes about 30 seconds.',
+              style: GoogleFonts.inter(fontSize: 14, color: C.textSecondary, height: 1.5)),
+            const SizedBox(height: 16),
 
-            // ── Timeout warning (45s) ──────────────────────────────────────
-            // UF: "This is taking longer than expected. Still working..."
-            if (_timedOut && !allDone) ...[
+            // Timeout banner
+            if (_timedOut && !_allDone) ...[
               InfoBanner(
-                message:
-                    'This is taking longer than expected. Still working...',
+                message: 'This is taking longer than expected — still running…',
                 icon: Icons.hourglass_top_rounded,
-                bgColor: C.amber50,
-                borderColor: C.amber500,
-                textColor: C.amber700,
+                bgColor: C.amber50, accentColor: C.amber500, textColor: C.amber700,
               ),
               const SizedBox(height: 12),
             ],
 
-            // ── Progress card ──────────────────────────────────────────────
+            // ── Progress card ─────────────────────────────────────────────
             MediCard(
-              accentColor: allDone ? C.green500 : C.teal500,
-              child: Column(
-                children: [
-                  Row(children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            allDone
-                                ? 'All agents complete!'
-                                : 'AI Pipeline Running',
-                            style: GoogleFonts.inter(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: C.textPrimary),
-                          ),
-                          Text(
-                            '$_done of ${_agents.length} agents complete',
-                            style: GoogleFonts.inter(
-                                fontSize: 12, color: C.textTertiary),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(
-                      width: 52,
-                      height: 52,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          CircularProgressIndicator(
-                            value: _progress,
-                            strokeWidth: 3.5,
-                            backgroundColor: C.surf2,
-                            valueColor: AlwaysStoppedAnimation(
-                                allDone ? C.green500 : C.teal500),
-                          ),
-                          Text(
-                            '${(_progress * 100).round()}%',
-                            style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: C.textPrimary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ]),
-                  const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: _progress,
-                      minHeight: 6,
-                      backgroundColor: C.surf2,
-                      valueColor: AlwaysStoppedAnimation(
-                          allDone ? C.green500 : C.teal500),
+              accentColor: _allDone ? C.green500 : C.teal500,
+              child: Column(children: [
+                Row(children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_allDone ? 'Pipeline Complete' : 'AI Pipeline Running',
+                          style: GoogleFonts.inter(
+                            fontSize: 15, fontWeight: FontWeight.w700,
+                            color: C.textPrimary)),
+                        Text('$_done of ${_agentDefs.length} agents complete',
+                          style: GoogleFonts.inter(
+                            fontSize: 12, color: C.textTertiary)),
+                      ],
                     ),
                   ),
-                  if (!allDone) ...[
-                    const SizedBox(height: 8),
-                    // UF: "You will be automatically taken to your result when done."
-                    Row(children: [
-                      const Icon(Icons.info_outline_rounded,
-                          size: 13, color: C.textTertiary),
-                      const SizedBox(width: 5),
-                      Text(
-                        'You will be automatically taken to your result when done.',
-                        style: GoogleFonts.inter(
-                            fontSize: 12, color: C.textTertiary),
+                  SizedBox(
+                    width: 52, height: 52,
+                    child: Stack(alignment: Alignment.center, children: [
+                      CircularProgressIndicator(
+                        value: _progress,
+                        strokeWidth: 3.5,
+                        backgroundColor: C.surf2,
+                        valueColor: AlwaysStoppedAnimation(
+                          _allDone ? C.green500 : C.teal500),
                       ),
+                      Text('${(_progress * 100).round()}%',
+                        style: GoogleFonts.inter(
+                          fontSize: 11, fontWeight: FontWeight.w700,
+                          color: C.textPrimary)),
                     ]),
-                  ],
-                ],
-              ),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: _progress, minHeight: 6,
+                    backgroundColor: C.surf2,
+                    valueColor: AlwaysStoppedAnimation(
+                      _allDone ? C.green500 : C.teal500),
+                  ),
+                ),
+              ]),
             ),
             const SizedBox(height: 20),
 
-            // ── Agent Timeline ────────────────────────────────────────────
-            Text('Agent Progress',
-                style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: C.textPrimary)),
+            // ── Agent timeline ─────────────────────────────────────────────
+            Text('Live Agent Progress',
+              style: GoogleFonts.inter(
+                fontSize: 15, fontWeight: FontWeight.w700, color: C.textPrimary)),
             const SizedBox(height: 10),
             MediCard(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Column(
-                children: _agents.asMap().entries.map((entry) {
-                  final i = entry.key;
-                  final ag = entry.value;
-                  final st = _status(i);
-                  final exp = _expandedAgents.contains(i);
-                  final isLast = i == _agents.length - 1;
+                children: _agentDefs.asMap().entries.map((e) {
+                  final i  = e.key;
+                  final ag = e.value;
+                  final st = _statusFor(i);
+                  final isLast = i == _agentDefs.length - 1;
+                  // Use REAL output from backend audit trail (if available)
+                  final realOut = _realOutputFor(i);
 
-                  return GestureDetector(
-                    onTap: () => setState(() {
-                      exp
-                          ? _expandedAgents.remove(i)
-                          : _expandedAgents.add(i);
-                    }),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Column(children: [
-                          _StepDot(st, ag.$1),
-                          if (!isLast)
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 400),
+                  return Column(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Column(children: [
+                            _StepDot(st, ag.$1),
+                            if (!isLast) Container(
                               width: 2,
-                              height: exp && st == AgentStepStatus.complete
-                                  ? 90
-                                  : 44,
+                              height: realOut != null ? 60 : 44,
                               color: st == AgentStepStatus.complete
-                                  ? C.teal500.withValues(alpha: 0.4)
+                                  ? C.teal500.withValues(alpha: 0.35)
                                   : C.surf3,
                             ),
-                        ]),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Padding(
-                            padding: EdgeInsets.only(bottom: isLast ? 8 : 0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 4),
-                                // UF: plain-language label
-                                Text(ag.$2,
-                                    style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: st == AgentStepStatus.pending
-                                            ? C.textTertiary
-                                            : C.textPrimary)),
-                                const SizedBox(height: 2),
-                                Text(_statusLabel(st, ag.$3),
-                                    style: GoogleFonts.inter(
-                                        fontSize: 11,
-                                        color: _labelColor(st))),
-                                if (exp &&
-                                    st == AgentStepStatus.complete) ...[
-                                  const SizedBox(height: 10),
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                        color: C.textPrimary,
-                                        borderRadius:
-                                            BorderRadius.circular(10)),
-                                    child: Text(ag.$4,
-                                        style: AppTheme.monoStyle(
-                                            color: C.teal400, size: 11)),
-                                  ),
+                          ]),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
                                   const SizedBox(height: 4),
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: Text('Hide ↑',
-                                        style: GoogleFonts.inter(
-                                            fontSize: 12,
-                                            color: C.teal700,
-                                            fontWeight: FontWeight.w500)),
-                                  ),
-                                ] else if (st == AgentStepStatus.complete) ...[
-                                  Text('Show output ↓',
-                                      style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          color: C.teal700,
-                                          fontWeight: FontWeight.w500)),
+                                  // Agent name
+                                  Text(ag.$2,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13, fontWeight: FontWeight.w600,
+                                      color: st == AgentStepStatus.pending
+                                          ? C.textTertiary : C.textPrimary)),
+                                  const SizedBox(height: 2),
+                                  // Status label
+                                  Text(_statusLabel(st, ag.$3),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11, color: _labelColor(st))),
+                                  // REAL backend output (only when available from API)
+                                  if (realOut != null && realOut.isNotEmpty) ...[
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: C.navy900,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: C.teal500.withValues(alpha: 0.3)),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: C.teal500.withValues(alpha: 0.1),
+                                            blurRadius: 10, offset: const Offset(0, 4))
+                                        ],
+                                      ),
+                                      child: Text(realOut,
+                                        style: AppTheme.monoStyle(
+                                          color: C.teal400, size: 11)),
+                                    ),
+                                  ],
                                 ],
-                                SizedBox(height: isLast ? 0 : 8),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                      if (!isLast) const SizedBox(height: 4),
+                    ],
                   );
                 }).toList(),
               ),
             ),
-            const SizedBox(height: 20),
-
-            // ── Live Audit Trail ───────────────────────────────────────────
-            if (_log.isNotEmpty) ...[
-              Text('Live Audit Trail',
-                  style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: C.textPrimary)),
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: C.textPrimary,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: _log.reversed.take(6).map((e) => Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('[${e.time}] ',
-                            style: AppTheme.monoStyle(
-                                color: C.teal400, size: 10)),
-                        Expanded(
-                          child: Text(e.msg,
-                              style: AppTheme.monoStyle(
-                                  color: const Color(0xFFCAD5E5),
-                                  size: 10,
-                                  height: 1.5)),
-                        ),
-                      ],
-                    ),
-                  )).toList(),
-                ),
-              ),
-            ],
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
           ],
         ),
       ),
@@ -572,18 +415,18 @@ class _AgentPipelineScreenState extends State<AgentPipelineScreen> {
   }
 
   Color _labelColor(AgentStepStatus s) => switch (s) {
-        AgentStepStatus.pending => C.textTertiary,
-        AgentStepStatus.active => C.amber600,
-        AgentStepStatus.complete => C.teal700,
-        AgentStepStatus.error => C.red700,
-      };
+    AgentStepStatus.pending  => C.textTertiary,
+    AgentStepStatus.active   => C.amber600,
+    AgentStepStatus.complete => C.teal700,
+    AgentStepStatus.error    => C.red700,
+  };
 
-  String _statusLabel(AgentStepStatus s, String activeText) => switch (s) {
-        AgentStepStatus.pending => 'Waiting in queue…',
-        AgentStepStatus.active => activeText,
-        AgentStepStatus.complete => 'Complete ✓',
-        AgentStepStatus.error => 'Failed',
-      };
+  String _statusLabel(AgentStepStatus s, String activeTxt) => switch (s) {
+    AgentStepStatus.pending  => 'Queued',
+    AgentStepStatus.active   => activeTxt,
+    AgentStepStatus.complete => 'Complete ✓',
+    AgentStepStatus.error    => 'Error',
+  };
 }
 
 // ── Step Dot ──────────────────────────────────────────────────────────────────
@@ -595,46 +438,78 @@ class _StepDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (status) {
-        AgentStepStatus.pending => Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: C.surf2,
-                border: Border.all(color: C.surf3, width: 1.5)),
-            child: Icon(icon, size: 14, color: C.textTertiary),
-          ),
-        AgentStepStatus.active => Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      valueColor:
-                          const AlwaysStoppedAnimation(C.amber500))),
-              Icon(icon, size: 13, color: C.amber600),
-            ],
-          ),
-        AgentStepStatus.complete => Container(
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(
-                shape: BoxShape.circle, color: C.teal500),
-            child: const Icon(Icons.check_rounded, size: 16, color: C.white),
-          ),
-        AgentStepStatus.error => Container(
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(
-                shape: BoxShape.circle, color: C.red500),
-            child: const Icon(Icons.close_rounded, size: 16, color: C.white),
-          ),
-      };
+    AgentStepStatus.pending => Container(
+      width: 32, height: 32,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle, color: C.surf2,
+        border: Border.all(color: C.surf3, width: 1.5)),
+      child: Icon(icon, size: 14, color: C.textTertiary),
+    ),
+    AgentStepStatus.active => PulseRings(
+      color: C.amber500,
+      child: Container(
+        width: 32, height: 32,
+        decoration: const BoxDecoration(shape: BoxShape.circle, color: C.amber500),
+        child: const Icon(Icons.sync_rounded, size: 16, color: C.white),
+      ),
+    ),
+    AgentStepStatus.complete => Container(
+      width: 32, height: 32,
+      decoration: const BoxDecoration(shape: BoxShape.circle, color: C.teal500),
+      child: const Icon(Icons.check_rounded, size: 16, color: C.white),
+    ),
+    AgentStepStatus.error => Container(
+      width: 32, height: 32,
+      decoration: const BoxDecoration(shape: BoxShape.circle, color: C.red500),
+      child: const Icon(Icons.close_rounded, size: 16, color: C.white),
+    ),
+  };
 }
 
-class _LogEntry {
-  final String time, msg;
-  const _LogEntry(this.time, this.msg);
+// ── Error Screen ──────────────────────────────────────────────────────────────
+
+class _ErrorScreen extends StatelessWidget {
+  final VoidCallback onRetry;
+  const _ErrorScreen({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.surf1,
+      appBar: AppBar(
+        backgroundColor: C.surf0, surfaceTintColor: Colors.transparent,
+        automaticallyImplyLeading: false,
+        title: Text('Processing Request',
+          style: GoogleFonts.inter(
+            fontSize: 16, fontWeight: FontWeight.w700, color: C.textPrimary)),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Container(
+              width: 80, height: 80,
+              decoration: const BoxDecoration(color: C.red50, shape: BoxShape.circle),
+              child: const Icon(Icons.error_outline_rounded, size: 40, color: C.red500),
+            ),
+            const SizedBox(height: 24),
+            Text('Our AI encountered an issue.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 20, fontWeight: FontWeight.w800, color: C.textPrimary)),
+            const SizedBox(height: 8),
+            Text('Please check your connection and try again.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 14, color: C.textSecondary)),
+            const SizedBox(height: 32),
+            PrimaryButton(
+              label: 'Try Again',
+              icon: Icons.refresh_rounded,
+              onPressed: onRetry,
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
 }

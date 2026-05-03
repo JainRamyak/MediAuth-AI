@@ -2,326 +2,297 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/colors.dart';
 import '../api/api_service.dart';
-import 's13_prompt_editor.dart';
-import 's14_prompt_test.dart';
+import '../widgets/shared_widgets.dart';
 
-// ── Agent definitions for the list ───────────────────────────────────────────
+// ── Agent metadata ────────────────────────────────────────────────────────────
 
-const _agentList = [
-  (
-    1,
-    'Intake & History Agent',
-    'System + User template',
-    '2,340',
-    '3 days ago',
-  ),
-  (
-    2,
-    'Medical Analysis Agent',
-    'System + User template',
-    '1,870',
-    '1 day ago',
-  ),
-  (
-    3,
-    'Policy Intelligence Agent',
-    'System + User template',
-    '4,120',
-    '5 hours ago',
-  ),
-  (
-    4,
-    'Justification Writer',
-    'System + User template',
-    '6,450',
-    '2 hours ago',
-  ),
-  (
-    5,
-    'Submission & Monitor',
-    'System + User template',
-    '1,230',
-    '12 hours ago',
-  ),
-  (
-    6,
-    'Denial & Appeal Agent',
-    'System + User template',
-    '8,910',
-    '30 mins ago',
-  ),
-  (
-    7,
-    'Claims Validation Agent',
-    'System + User template',
-    '2,670',
-    '4 hours ago',
-  ),
+const _agentMeta = {
+  'intake':           (1, 'Intake & History Agent',       'Reads and structures patient input'),
+  'medical_analysis': (2, 'Medical Analysis Agent',       'Assigns ICD-10 & CPT codes'),
+  'policy':           (3, 'Policy Intelligence Agent',    'Checks insurer coverage rules'),
+  'justification':    (4, 'Justification Writer',         'Writes the authorization letter'),
+  'submission':       (5, 'Submission Agent',             'Submits claim and monitors response'),
+  'appeal':           (6, 'Denial & Appeal Agent',        'Writes and files appeals automatically'),
+  'claims':           (7, 'Claims Validation Agent',      'Validates billing codes for accuracy'),
+};
+
+const _agentOrder = [
+  'intake', 'medical_analysis', 'policy',
+  'justification', 'submission', 'appeal', 'claims',
 ];
 
-// ── S12 Agent List ─────────────────────────────────────────────────────────────
+// ── Screen 12 — AI Agents Dashboard ─────────────────────────────────────────
 
 class AgentListScreen extends StatefulWidget {
-  const AgentListScreen({super.key});
+  final void Function(String agentKey) onAgentTap;
+
+  const AgentListScreen({super.key, required this.onAgentTap});
 
   @override
   State<AgentListScreen> createState() => _AgentListScreenState();
 }
 
 class _AgentListScreenState extends State<AgentListScreen> {
+  bool _loading = true;
+  String? _error;
+  // agentKey → {system, user_template}
+  final _prompts = <String, Map<String, String>>{};
+  bool _backendUp = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      // Check backend health first
+      await ApiService.healthCheck();
+      _backendUp = true;
+
+      // Load all prompts
+      final agents = await ApiService.fetchPromptsList();
+      for (final a in agents) {
+        try {
+          _prompts[a] = await ApiService.fetchPrompt(a);
+        } catch (_) {}
+      }
+      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (mounted) setState(() {
+        _error = 'Could not connect to backend. Is the server running?';
+        _loading = false;
+        _backendUp = false;
+      });
+    }
+  }
+
+  int _charCount(String key) {
+    final p = _prompts[key];
+    if (p == null) return 0;
+    return (p['system']?.length ?? 0) + (p['user_template']?.length ?? 0);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: C.surf1,
       appBar: AppBar(
-        title: const Text('Prompt Inspector'),
+        backgroundColor: C.surf0,
+        surfaceTintColor: Colors.transparent,
+        title: Text('🤖  AI Agents',
+          style: GoogleFonts.inter(
+            fontSize: 18, fontWeight: FontWeight.w700, color: C.textPrimary)),
+        automaticallyImplyLeading: false,
       ),
-      body: Column(
-        children: [
-          // Judge-facing banner
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: C.surf3, width: 0.5)),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        color: C.teal500,
+        child: CustomScrollView(
+          slivers: [
+            // ── System health strip ──────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Container(
+                color: _backendUp ? C.teal50 : C.amber50,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(children: [
+                  Container(
+                    width: 8, height: 8,
+                    decoration: BoxDecoration(
+                      color: _backendUp ? C.green500 : C.amber500,
+                      shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _backendUp
+                        ? '${_agentOrder.length}/${_agentOrder.length} Agents Live  ·  System: Operational'
+                        : 'Backend offline — showing cached data',
+                    style: GoogleFonts.inter(
+                      fontSize: 12, fontWeight: FontWeight.w500,
+                      color: _backendUp ? C.teal700 : C.amber700)),
+                ]),
+              ),
             ),
-            child: Text(
-              'Every agent\'s logic is visible and editable here. No code required.',
-              style: GoogleFonts.inter(
-                fontSize: 13, color: C.textSecondary),
+
+            // ── Subtitle ─────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                child: Text(
+                  'Every agent working on your behalf — visible, inspectable, and customizable.',
+                  style: GoogleFonts.inter(fontSize: 13, color: C.textSecondary)),
+              ),
             ),
-          ),
-          // Agent cards
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              itemCount: _agentList.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (ctx, i) {
-                final a = _agentList[i];
-                return _AgentCard(
-                  number: a.$1,
-                  name: a.$2,
-                  templateType: a.$3,
-                  charCount: a.$4,
-                  lastEdited: a.$5,
-                  onTap: () => _openEditor(context, a.$1, a.$2),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  /// Maps agent card number → backend agent key used by GET/PUT /api/v1/prompts/{key}
-  static const _agentKeys = {
-    1: 'intake',
-    2: 'medical_analysis',
-    3: 'policy',
-    4: 'justification',
-    5: 'submission',
-    6: 'appeal',
-    7: 'claims',
-  };
+            // ── Error ─────────────────────────────────────────────────────
+            if (_error != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: InfoBanner(
+                    message: _error!,
+                    icon: Icons.wifi_off_rounded,
+                    bgColor: C.amber50,
+                    accentColor: C.amber500,
+                    textColor: C.amber700,
+                  ),
+                ),
+              ),
 
-  Future<void> _openEditor(BuildContext context, int num, String name) async {
-    final agentKey = _agentKeys[num] ?? 'intake';
+            // ── Agent cards ───────────────────────────────────────────────
+            if (_loading)
+              const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator(color: C.teal500)))
+            else
+              SliverList(
+                delegate: SliverChildBuilderDelegate((ctx, i) {
+                  final key = _agentOrder[i];
+                  final meta = _agentMeta[key];
+                  if (meta == null) return const SizedBox.shrink();
+                  return FadeSlide(
+                    delay: Duration(milliseconds: i * 100),
+                    child: _AgentCard(
+                      index: meta.$1,
+                      displayName: meta.$2,
+                      subtitle: meta.$3,
+                      agentKey: key,
+                      charCount: _charCount(key),
+                      hasPrompt: _prompts.containsKey(key),
+                      onTap: () => widget.onAgentTap(key),
+                    ),
+                  );
+                }, childCount: _agentOrder.length),
+              ),
 
-    // Show loading while fetching prompt from backend
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: C.teal500),
-      ),
-    );
-
-    Map<String, String> promptData;
-    try {
-      promptData = await ApiService.fetchPrompt(agentKey);
-    } catch (e) {
-      if (!context.mounted) return;
-      Navigator.of(context).pop(); // dismiss loading
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not load prompt: $e'),
-          backgroundColor: C.red500,
-          behavior: SnackBarBehavior.floating,
+            const SliverToBoxAdapter(child: SizedBox(height: 32)),
+          ],
         ),
-      );
-      return;
-    }
-
-    if (!context.mounted) return;
-    Navigator.of(context).pop(); // dismiss loading
-
-    final agent = AgentPrompt(
-      name: name,
-      agentKey: agentKey,
-      systemPrompt: promptData['system'] ?? '',
-      userTemplate: promptData['user_template'] ?? '',
-    );
-
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (ctx2) => PromptEditorScreen(
-        agent: agent,
-        onBack: () => Navigator.pop(ctx2),
-        onTest: (ag) {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (ctx3) => PromptTestScreen(
-              agent: ag,
-              onBack: () => Navigator.pop(ctx3),
-              onEdit: () => Navigator.pop(ctx3),
-            ),
-          ));
-        },
       ),
-    ));
+    );
   }
 }
 
 // ── Agent Card ────────────────────────────────────────────────────────────────
 
 class _AgentCard extends StatelessWidget {
-  final int number;
-  final String name, templateType, charCount, lastEdited;
+  final int index;
+  final String displayName;
+  final String subtitle;
+  final String agentKey;
+  final int charCount;
+  final bool hasPrompt;
   final VoidCallback onTap;
 
   const _AgentCard({
-    required this.number, required this.name,
-    required this.templateType, required this.charCount,
-    required this.lastEdited, required this.onTap,
+    required this.index,
+    required this.displayName,
+    required this.subtitle,
+    required this.agentKey,
+    required this.charCount,
+    required this.hasPrompt,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        decoration: BoxDecoration(
-          color: C.surf0,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Material(
+        color: C.surf0,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: C.surf3, width: 0.5),
-        ),
-        padding: const EdgeInsets.all(14),
-        child: Column(children: [
-          Row(children: [
-              // Agent number circle
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: C.teal50,
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text('$number',
-                    style: GoogleFonts.inter(
-                      fontSize: 18, fontWeight: FontWeight.w700,
-                      color: C.teal700)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name,
-                      style: GoogleFonts.inter(
-                        fontSize: 14, fontWeight: FontWeight.w700,
-                        color: C.textPrimary)),
-                    const SizedBox(height: 2),
-                    Text(templateType,
-                      style: GoogleFonts.inter(
-                        fontSize: 12, color: C.textTertiary)),
-                  ],
-                ),
-              ),
-              // Live badge with pulsing dot
-              _LiveBadge(),
-            ]),
-            const SizedBox(height: 10),
-            const Divider(height: 0.5),
-            const SizedBox(height: 8),
-            Row(children: [
-              const Icon(Icons.text_fields_rounded,
-                size: 13, color: C.textTertiary),
-              const SizedBox(width: 4),
-              Text('$charCount chars',
-                style: GoogleFonts.inter(
-                  fontSize: 12, color: C.textSecondary,
-                  fontWeight: FontWeight.w500)),
-              const SizedBox(width: 14),
-              const Icon(Icons.access_time_rounded,
-                size: 13, color: C.textTertiary),
-              const SizedBox(width: 4),
-              Text('Edited $lastEdited',
-                style: GoogleFonts.inter(
-                  fontSize: 12, color: C.textTertiary)),
-              const Spacer(),
-              Text('Edit →',
-                style: GoogleFonts.inter(
-                  fontSize: 12, fontWeight: FontWeight.w600,
-                  color: C.teal600)),
-            ]),
-        ]),
-      ),
-    );
-  }
-}
-
-class _LiveBadge extends StatefulWidget {
-  const _LiveBadge();
-  @override
-  State<_LiveBadge> createState() => _LiveBadgeState();
-}
-
-class _LiveBadgeState extends State<_LiveBadge>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _fade;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 900));
-    _fade = Tween<double>(begin: 0.3, end: 1.0).animate(_ctrl);
-    _ctrl.forward().then((_) => _ctrl.reverse());
-  }
-
-  @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    decoration: BoxDecoration(
-      color: C.green50,
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: C.green500, width: 0.5),
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      AnimatedBuilder(
-        animation: _fade,
-        builder: (_, __) => Opacity(
-          opacity: _fade.value,
           child: Container(
-            width: 6, height: 6,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: C.green500),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: C.surf3, width: 0.5),
+            ),
+            child: Column(
+              children: [
+                // Top row
+                Row(children: [
+                  // Numbered circle
+                  Container(
+                    width: 44, height: 44,
+                    decoration: const BoxDecoration(
+                      color: C.teal50, shape: BoxShape.circle),
+                    child: Center(
+                      child: Text('$index',
+                        style: GoogleFonts.inter(
+                          fontSize: 18, fontWeight: FontWeight.w800,
+                          color: C.teal600)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(displayName,
+                          style: GoogleFonts.inter(
+                            fontSize: 14, fontWeight: FontWeight.w700,
+                            color: C.textPrimary)),
+                        Text('System + User template',
+                          style: GoogleFonts.inter(
+                            fontSize: 12, color: C.textTertiary)),
+                      ],
+                    ),
+                  ),
+                  // ● Live pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: C.teal500, width: 0.8),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Container(
+                        width: 7, height: 7,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF00C853), shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 4),
+                      Text('Live',
+                        style: GoogleFonts.inter(
+                          fontSize: 11, color: C.teal600,
+                          fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+                ]),
+                const SizedBox(height: 10),
+                const Divider(height: 1),
+                const SizedBox(height: 10),
+                // Bottom row
+                Row(children: [
+                  Text('Ʈr',
+                    style: GoogleFonts.inter(
+                      fontSize: 13, fontWeight: FontWeight.w700, color: C.teal500)),
+                  const SizedBox(width: 4),
+                  Text(charCount > 0 ? '$charCount chars' : 'No data',
+                    style: GoogleFonts.inter(fontSize: 12, color: C.teal600)),
+                  const SizedBox(width: 16),
+                  Icon(Icons.check_circle_outline_rounded,
+                    size: 13, color: hasPrompt ? C.green500 : C.textTertiary),
+                  const SizedBox(width: 4),
+                  Text(subtitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 11, color: C.textTertiary),
+                    overflow: TextOverflow.ellipsis),
+                  const Spacer(),
+                  Text('Edit →',
+                    style: GoogleFonts.inter(
+                      fontSize: 13, color: C.teal500,
+                      fontWeight: FontWeight.w700)),
+                ]),
+              ],
+            ),
           ),
         ),
       ),
-      const SizedBox(width: 5),
-      Text('Live',
-        style: GoogleFonts.inter(
-          fontSize: 11, fontWeight: FontWeight.w600,
-          color: C.green700)),
-    ]),
-  );
+    );
+  }
 }

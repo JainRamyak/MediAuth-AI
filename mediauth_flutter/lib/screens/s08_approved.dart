@@ -1,26 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/colors.dart';
+import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
 
-// ── S08 Authorization Approved ────────────────────────────────────────────────
-// Displays the real result from POST /api/v1/authorize:
-//   auth_request_id  → reference number
-//   justification_letter → letter preview
-//   appeal_level     → shown in bento grid
-//   workflow_status  → shown in bento grid
+// ── Approved Result Screen ────────────────────────────────────────────────────
 
 class ApprovedScreen extends StatefulWidget {
-  final VoidCallback onDone;
-
-  /// Raw response map from POST /api/v1/authorize.
-  /// Null-safe: all fields have safe fallbacks.
-  final Map<String, dynamic>? apiResult;
+  final Map<String, dynamic> result;
+  final VoidCallback onNewRequest;
+  final VoidCallback onHome;
 
   const ApprovedScreen({
     super.key,
-    required this.onDone,
-    this.apiResult,
+    required this.result,
+    required this.onNewRequest,
+    required this.onHome,
   });
 
   @override
@@ -28,482 +24,343 @@ class ApprovedScreen extends StatefulWidget {
 }
 
 class _ApprovedScreenState extends State<ApprovedScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _heroCtl;
-  late Animation<double> _scale;
-  late Animation<double> _opacity;
-
-  late AnimationController _confCtl;
-  late Animation<double> _confAnim;
-  final _dots = generateConfetti();
-
-  // ── Derived data helpers ──────────────────────────────────────────────────
-  String get _refNumber {
-    final id = widget.apiResult?['auth_request_id']?.toString() ?? '';
-    if (id.isNotEmpty) return 'REF #${id.substring(0, 8).toUpperCase()}';
-    return 'REF #—';
-  }
-
-  String get _workflowStatus =>
-      widget.apiResult?['workflow_status']?.toString() ?? 'approved';
-
-  int get _appealLevel =>
-      int.tryParse(widget.apiResult?['appeal_level']?.toString() ?? '0') ?? 0;
-
-  String get _justificationLetter =>
-      widget.apiResult?['justification_letter']?.toString() ?? '';
-
-  List<dynamic> get _auditTrail =>
-      widget.apiResult?['audit_trail'] as List<dynamic>? ?? [];
-
-  /// Returns the first 500 chars of the letter for the preview card.
-  String get _letterPreview {
-    final letter = _justificationLetter;
-    if (letter.isEmpty) return 'No justification letter available.';
-    return letter.length > 500 ? '${letter.substring(0, 500)}…' : letter;
-  }
+    with SingleTickerProviderStateMixin {
+  late AnimationController _confetti;
+  bool _techExpanded = false;
+  bool _letterExpanded = false;
 
   @override
   void initState() {
     super.initState();
-
-    _heroCtl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 800));
-    _scale   = CurvedAnimation(parent: _heroCtl, curve: Curves.elasticOut);
-    _opacity = CurvedAnimation(parent: _heroCtl, curve: Curves.easeOut);
-    _heroCtl.forward();
-
-    _confCtl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 2000));
-    _confAnim = CurvedAnimation(parent: _confCtl, curve: Curves.easeOut);
-    Future.delayed(const Duration(milliseconds: 400), () {
-      if (mounted) _confCtl.forward();
-    });
+    _confetti = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 2000))
+      ..forward();
   }
 
   @override
   void dispose() {
-    _heroCtl.dispose();
-    _confCtl.dispose();
+    _confetti.dispose();
     super.dispose();
   }
 
-  // ── Full letter dialog ────────────────────────────────────────────────────
+  String get _authId {
+    final raw = widget.result['auth_request_id']?.toString() ?? '';
+    return raw.length > 8 ? raw.substring(0, 8).toUpperCase() : raw.toUpperCase();
+  }
 
-  void _showFullLetter(BuildContext context) {
-    final letter = _justificationLetter;
-    if (letter.isEmpty) return;
+  String get _letter =>
+      widget.result['justification_letter']?.toString() ?? '';
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        maxChildSize: 0.95,
-        minChildSize: 0.5,
-        builder: (_, scrollCtrl) => Container(
-          decoration: const BoxDecoration(
-            color: C.surf0,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              // Handle
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 16),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                      color: C.surf3,
-                      borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: Row(children: [
-                  const Icon(Icons.description_outlined,
-                      size: 18, color: C.teal600),
-                  const SizedBox(width: 8),
-                  Text('Authorization Letter',
-                      style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: C.textPrimary)),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: C.green50,
-                      borderRadius: BorderRadius.circular(8)),
-                    child: Text('AI Generated',
-                        style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: C.green600)),
-                  ),
-                ]),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollCtrl,
-                  padding: const EdgeInsets.all(20),
-                  child: Text(
-                    letter,
-                    style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: C.textSecondary,
-                        height: 1.7),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  List<dynamic> get _trail =>
+      widget.result['audit_trail'] as List<dynamic>? ?? [];
+
+  int get _appealLevel => (widget.result['appeal_level'] as num?)?.toInt() ?? 0;
+
+  String _agentName(String key) {
+    const names = {
+      'intake':           'Intake Agent',
+      'medical_analysis': 'Medical Analysis',
+      'policy':           'Policy Intelligence',
+      'justification':    'Justification Writer',
+      'submission':       'Submission Agent',
+      'appeal':           'Appeal Agent',
+      'claims':           'Claims Validator',
+    };
+    return names[key] ?? key.replaceAll('_', ' ').toUpperCase();
+  }
+
+  Color _statusColor(String status) {
+    if (status.contains('success') || status.contains('approved') || status.contains('complete')) return C.green700;
+    if (status.contains('submitted') || status.contains('appealing')) return C.violet700;
+    if (status.contains('error')) return C.red700;
+    return C.textTertiary;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: C.surf0,
-      appBar: AppBar(
-        title: Text('Authorization Approved',
-          style: GoogleFonts.inter(
-            fontSize: 16, fontWeight: FontWeight.w600,
-            color: C.textPrimary)),
-        automaticallyImplyLeading: false,
-        backgroundColor: C.surf0,
-        elevation: 0,
-      ),
-      body: Stack(
-        children: [
-          // Confetti layer
-          AnimatedBuilder(
-            animation: _confAnim,
-            builder: (_, __) => CustomPaint(
-              painter: ConfettiPainter(
-                progress: _confAnim.value,
-                dots: _dots),
-              size: Size.infinite,
-            ),
-          ),
-
-          // Content
-          SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-            child: Column(
+      backgroundColor: C.surf1,
+      body: CustomScrollView(
+        slivers: [
+          // ── Hero ───────────────────────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: Stack(
               children: [
-                // ── Hero ───────────────────────────────────────────────────
-                const SizedBox(height: 12),
+                // Confetti painter
                 AnimatedBuilder(
-                  animation: _heroCtl,
-                  builder: (_, __) => Opacity(
-                    opacity: _opacity.value.clamp(0.0, 1.0),
-                    child: Transform.scale(
-                      scale: _scale.value.clamp(0.0, 1.3),
-                      child: PulseRings(
-                        color: C.green500,
-                        child: Container(
-                          width: 114, height: 114,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: C.green50,
-                          ),
-                          child: const Icon(
-                            Icons.check_circle_rounded,
-                            size: 62, color: C.green500),
-                        ),
+                  animation: _confetti,
+                  builder: (_, __) => SizedBox(
+                    height: 280,
+                    width: double.infinity,
+                    child: CustomPaint(
+                      painter: ConfettiPainter(
+                        progress: _confetti.value,
+                        dots: generateConfetti(),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-
-                Text('Your Treatment is Approved!',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    fontSize: 22, fontWeight: FontWeight.w800,
-                    color: C.textPrimary, letterSpacing: -0.4)),
-                const SizedBox(height: 6),
-                Text(
-                  _appealLevel > 0
-                      ? 'Approved after $_appealLevel appeal(s)'
-                      : 'Approved on first submission',
-                  style: GoogleFonts.inter(
-                    fontSize: 13, color: C.textSecondary)),
-                const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: C.surf1,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: C.surf3),
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [C.green500, C.green700],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(32),
+                      bottomRight: Radius.circular(32),
+                    ),
                   ),
-                  child: Text(_refNumber,
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 13, fontWeight: FontWeight.w600,
-                      color: C.textPrimary)),
-                ),
-                const SizedBox(height: 24),
-
-                // ── Bento summary grid ──────────────────────────────────────
-                _BentoGrid(items: [
-                  (Icons.calendar_today_rounded, 'Approved On',
-                    _formattedDate(), C.green500),
-                  (Icons.gavel_rounded, 'Appeal Rounds',
-                    _appealLevel == 0 ? 'None' : '$_appealLevel', C.teal500),
-                  (Icons.shield_rounded, 'Status',
-                    _workflowStatus.toUpperCase(), C.blue500),
-                  (Icons.receipt_long_outlined, 'Ref ID',
-                    _refNumber.replaceAll('REF #', ''), C.violet500),
-                ]),
-                const SizedBox(height: 14),
-
-                // ── Audit trail summary ─────────────────────────────────────
-                if (_auditTrail.isNotEmpty) ...[
-                  MediCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          const Icon(Icons.history_rounded,
-                              size: 16, color: C.teal600),
-                          const SizedBox(width: 8),
-                          Text('Agent Activity',
-                              style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: C.textPrimary)),
-                          const Spacer(),
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                      child: Column(
+                        children: [
+                          // Back / close
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: IconButton(
+                              icon: const Icon(Icons.arrow_back_rounded,
+                                  color: Colors.white70),
+                              onPressed: widget.onHome,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: 96, height: 96,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2),
+                            ),
+                            child: const Icon(Icons.check_rounded,
+                                size: 48, color: Colors.white),
+                          ),
+                          const SizedBox(height: 16),
+                          Text('Approved',
+                            style: GoogleFonts.outfit(
+                              fontSize: 30, fontWeight: FontWeight.w800,
+                              color: Colors.white, letterSpacing: -0.8)),
+                          const SizedBox(height: 8),
+                          if (_authId.isNotEmpty)
+                            Text('Auth ID: $_authId',
+                              style: AppTheme.monoStyle(
+                                color: Colors.white70, size: 12)),
+                          const SizedBox(height: 12),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
+                                horizontal: 16, vertical: 6),
                             decoration: BoxDecoration(
-                              color: C.teal50,
-                              borderRadius: BorderRadius.circular(8)),
-                            child: Text('${_auditTrail.length} events',
-                              style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: C.teal700)),
-                          ),
-                        ]),
-                        const SizedBox(height: 10),
-                        const Divider(height: 1),
-                        const SizedBox(height: 8),
-                        ...(_auditTrail.take(4).map((entry) {
-                          final e = entry as Map<String, dynamic>? ?? {};
-                          final agent = e['agent_name']?.toString() ?? 'Agent';
-                          final action = e['action']?.toString() ?? '';
-                          final status = e['status']?.toString() ?? '';
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 8, height: 8,
-                                  margin: const EdgeInsets.only(top: 4),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: status.contains('error')
-                                        ? C.red500
-                                        : C.green500,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(agent,
-                                        style: GoogleFonts.inter(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: C.textPrimary)),
-                                      if (action.isNotEmpty)
-                                        Text(action,
-                                          style: GoogleFonts.inter(
-                                              fontSize: 11,
-                                              color: C.textTertiary),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(999),
                             ),
-                          );
-                        })),
-                      ],
+                            child: Text(
+                              _appealLevel == 0
+                                  ? 'Approved on first submission'
+                                  : 'Approved after $_appealLevel appeal(s)',
+                              style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500)),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                ],
-
-                // ── Justification letter card ───────────────────────────────
-                MediCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        const Icon(Icons.description_outlined,
-                          size: 18, color: C.teal600),
-                        const SizedBox(width: 8),
-                        Text('Authorization Letter',
-                          style: GoogleFonts.inter(
-                            fontSize: 14, fontWeight: FontWeight.w700,
-                            color: C.textPrimary)),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: C.green50,
-                            borderRadius: BorderRadius.circular(8)),
-                          child: Text('AI Generated',
-                            style: GoogleFonts.inter(
-                              fontSize: 11, fontWeight: FontWeight.w600,
-                              color: C.green600)),
-                        ),
-                      ]),
-                      const SizedBox(height: 10),
-                      Text(
-                        _letterPreview,
-                        style: GoogleFonts.inter(
-                          fontSize: 12, color: C.textSecondary, height: 1.6),
-                        maxLines: 5,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (_justificationLetter.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        GestureDetector(
-                          onTap: () => _showFullLetter(context),
-                          child: Text('View full letter →',
-                            style: GoogleFonts.inter(
-                              fontSize: 13, fontWeight: FontWeight.w600,
-                              color: C.teal600)),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // ── Actions ───────────────────────────────────────────────────
-                ElevatedButton.icon(
-                  onPressed: () {
-                    // PDF download: future implementation
-                  },
-                  icon: const Icon(Icons.download_rounded, size: 18),
-                  label: Text('Download PDF Letter',
-                    style: GoogleFonts.inter(
-                      fontSize: 15, fontWeight: FontWeight.w700)),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 52),
-                    backgroundColor: C.teal500,
-                    foregroundColor: C.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14))),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.share_outlined, size: 18),
-                  label: const Text('Share with Provider'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 52),
-                    foregroundColor: C.textPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                    side: const BorderSide(color: C.surf3)),
-                ),
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: widget.onDone,
-                  child: Text('Back to Dashboard',
-                    style: GoogleFonts.inter(
-                      fontSize: 14, color: C.textSecondary)),
                 ),
               ],
             ),
           ),
+
+          SliverPadding(
+            padding: const EdgeInsets.all(20),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                // ── AI Activity Trail ─────────────────────────────────────
+                if (_trail.isNotEmpty) ...[
+                  Text('AI Activity Trail',
+                    style: GoogleFonts.inter(
+                      fontSize: 15, fontWeight: FontWeight.w700,
+                      color: C.textPrimary)),
+                  const SizedBox(height: 10),
+                  MediCard(
+                    child: Column(
+                      children: _trail.asMap().entries.map((e) {
+                        final idx = e.key;
+                        final entry = e.value as Map<String, dynamic>? ?? {};
+                        final agent  = entry['agent']?.toString() ?? '';
+                        final status = entry['status']?.toString() ?? '';
+                        final detail = entry['detail']?.toString() ?? '';
+                        final ok = status.contains('success') ||
+                            status.contains('approved') ||
+                            status.contains('complete') ||
+                            status.contains('submitted');
+                        final isLast = idx == _trail.length - 1;
+                        return Column(children: [
+                          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Container(
+                              width: 28, height: 28,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: ok ? C.green50 : C.red50),
+                              child: Icon(
+                                ok ? Icons.check_rounded : Icons.close_rounded,
+                                color: ok ? C.green600 : C.red500, size: 16),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 4),
+                                  Text(_agentName(agent),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13, fontWeight: FontWeight.w700,
+                                      color: C.textPrimary)),
+                                  if (detail.isNotEmpty) ...[
+                                    const SizedBox(height: 3),
+                                    Text(detail,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11, color: C.textSecondary,
+                                        height: 1.4)),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: ok ? C.green50 : C.red50,
+                                borderRadius: BorderRadius.circular(6)),
+                              child: Text(
+                                status.length > 12 ? '${status.substring(0,12)}…' : status,
+                                style: GoogleFonts.inter(
+                                  fontSize: 10, fontWeight: FontWeight.w600,
+                                  color: _statusColor(status))),
+                            ),
+                          ]),
+                          if (!isLast) ...[const SizedBox(height: 10), const Divider(height: 1), const SizedBox(height: 6)],
+                        ]);
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // ── Technical details (collapsed) ─────────────────────────
+                MediCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      GestureDetector(
+                        onTap: () => setState(() => _techExpanded = !_techExpanded),
+                        child: Row(children: [
+                          const Icon(Icons.code_rounded, size: 18, color: C.textTertiary),
+                          const SizedBox(width: 8),
+                          Text('Technical Details',
+                            style: GoogleFonts.inter(
+                              fontSize: 13, fontWeight: FontWeight.w600,
+                              color: C.textSecondary)),
+                          const Spacer(),
+                          Icon(_techExpanded
+                              ? Icons.expand_less_rounded
+                              : Icons.expand_more_rounded,
+                            color: C.textTertiary, size: 20),
+                        ]),
+                      ),
+                      if (_techExpanded) ...[
+                        const SizedBox(height: 12),
+                        const Divider(height: 1),
+                        const SizedBox(height: 12),
+                        Text('Authorization ID: ${widget.result['auth_request_id'] ?? '—'}',
+                          style: AppTheme.monoStyle(color: C.textSecondary, size: 11)),
+                        const SizedBox(height: 4),
+                        Text('Status: ${widget.result['workflow_status'] ?? '—'}',
+                          style: AppTheme.monoStyle(color: C.textSecondary, size: 11)),
+                        Text('Appeal Level: $_appealLevel',
+                          style: AppTheme.monoStyle(color: C.textSecondary, size: 11)),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // ── Letter preview ─────────────────────────────────────────
+                if (_letter.isNotEmpty) ...[
+                  MediCard(
+                    accentColor: C.teal500,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          const Icon(Icons.description_outlined, size: 18, color: C.teal500),
+                          const SizedBox(width: 8),
+                          Text('Authorization Letter  ·  ${_letter.split(' ').length} words',
+                            style: GoogleFonts.inter(
+                              fontSize: 14, fontWeight: FontWeight.w600,
+                              color: C.textPrimary)),
+                        ]),
+                        const Divider(height: 20),
+                        Text(
+                          _letter.length > 300
+                              ? '${_letter.substring(0, 300)}…'
+                              : _letter,
+                          style: GoogleFonts.inter(
+                            fontSize: 13, color: C.textSecondary, height: 1.6)),
+                        const SizedBox(height: 12),
+                        // Expand / collapse
+                        GestureDetector(
+                          onTap: () => setState(() => _letterExpanded = !_letterExpanded),
+                          child: Text(
+                            _letterExpanded ? 'Show less ↑' : 'View full letter ↓',
+                            style: GoogleFonts.inter(
+                              fontSize: 13, color: C.teal600,
+                              fontWeight: FontWeight.w600)),
+                        ),
+                        if (_letterExpanded) ...[
+                          const SizedBox(height: 12),
+                          SelectableText(_letter,
+                            style: GoogleFonts.inter(
+                              fontSize: 13, color: C.textPrimary, height: 1.7)),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // ── Actions ────────────────────────────────────────────────
+                if (_letter.isNotEmpty) ...[
+                  PrimaryButton(
+                    label: 'Copy Letter Text',
+                    icon: Icons.copy_rounded,
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: _letter));
+                      showMediToast(context, 'Letter copied to clipboard');
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('File Another Request'),
+                  onPressed: widget.onNewRequest,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: C.teal600,
+                    side: const BorderSide(color: C.teal500, width: 0.8),
+                    minimumSize: const Size(double.infinity, 52),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 32),
+              ]),
+            ),
+          ),
         ],
       ),
-    );
-  }
-
-  String _formattedDate() {
-    final now = DateTime.now();
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${months[now.month - 1]} ${now.day}, ${now.year}';
-  }
-}
-
-// ── Bento grid ────────────────────────────────────────────────────────────────
-
-class _BentoGrid extends StatelessWidget {
-  final List<(IconData, String, String, Color)> items;
-  const _BentoGrid({required this.items});
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
-      childAspectRatio: 2.2,
-      children: items.map((item) {
-        final (icon, label, value, color) = item;
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: color.withValues(alpha: 0.2), width: 0.5),
-          ),
-          child: Row(children: [
-            Container(
-              width: 34, height: 34,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8)),
-              child: Icon(icon, size: 16, color: color),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(label,
-                    style: GoogleFonts.inter(
-                      fontSize: 10, color: C.textTertiary,
-                      fontWeight: FontWeight.w500)),
-                  Text(value,
-                    style: GoogleFonts.inter(
-                      fontSize: 12, fontWeight: FontWeight.w700,
-                      color: C.textPrimary),
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                ],
-              ),
-            ),
-          ]),
-        );
-      }).toList(),
     );
   }
 }

@@ -26,6 +26,18 @@ class AuthorizationResponse(BaseModel):
     audit_trail: list
 
 
+class AuthHistoryItem(BaseModel):
+    auth_request_id: str
+    workflow_status: str
+    appeal_level: int
+    insurer: str | None
+    policy_number: str | None
+    patient_name: str | None
+    justification_letter: str | None
+    denial_reason: str | None
+    created_at: str
+
+
 # ─── Endpoints ───
 @router.post("/authorize", response_model=AuthorizationResponse)
 async def run_authorization(request: PatientIntakeRequest, db: Session = Depends(get_db)):
@@ -102,3 +114,62 @@ async def run_authorization(request: PatientIntakeRequest, db: Session = Depends
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Workflow failed: {str(e)}")
+
+
+# ─── GET /authorize — list all requests (newest first) ───
+@router.get("/authorize", response_model=list[AuthHistoryItem])
+def list_authorizations(limit: int = 50, db: Session = Depends(get_db)):
+    """Returns the most recent authorization requests with patient info joined."""
+    rows = (
+        db.query(AuthRequest, Patient)
+        .join(Patient, AuthRequest.patient_id == Patient.id)
+        .order_by(AuthRequest.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        AuthHistoryItem(
+            auth_request_id=str(ar.id),
+            workflow_status=ar.status or "unknown",
+            appeal_level=ar.appeal_level or 0,
+            insurer=p.insurer_name,
+            policy_number=p.insurance_policy_number,
+            patient_name=p.name,
+            justification_letter=ar.justification_letter,
+            denial_reason=ar.denial_reason,
+            created_at=ar.created_at.isoformat() if ar.created_at else "",
+        )
+        for ar, p in rows
+    ]
+
+
+# ─── GET /authorize/{auth_request_id} — single request detail ───
+@router.get("/authorize/{auth_request_id}", response_model=AuthHistoryItem)
+def get_authorization(auth_request_id: str, db: Session = Depends(get_db)):
+    """Returns a single authorization request by ID."""
+    try:
+        req_uuid = uuid.UUID(auth_request_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid authorization ID")
+
+    row = (
+        db.query(AuthRequest, Patient)
+        .join(Patient, AuthRequest.patient_id == Patient.id)
+        .filter(AuthRequest.id == req_uuid)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Authorization request not found")
+
+    ar, p = row
+    return AuthHistoryItem(
+        auth_request_id=str(ar.id),
+        workflow_status=ar.status or "unknown",
+        appeal_level=ar.appeal_level or 0,
+        insurer=p.insurer_name,
+        policy_number=p.insurance_policy_number,
+        patient_name=p.name,
+        justification_letter=ar.justification_letter,
+        denial_reason=ar.denial_reason,
+        created_at=ar.created_at.isoformat() if ar.created_at else "",
+    )

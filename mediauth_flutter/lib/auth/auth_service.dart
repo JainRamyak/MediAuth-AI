@@ -49,6 +49,17 @@ class AuthService {
     required String password,
   }) async {
     try {
+      // 1. Verify if the email is present in the database before logging in.
+      // If the user hasn't deployed the SQL RPC, this catch block falls back to default logic.
+      try {
+        final emailExists = await _client.rpc('check_email_exists', params: {'lookup_email': email.trim()});
+        if (emailExists == false) {
+          return AuthResult.fail('EMAIL_NOT_FOUND');
+        }
+      } catch (_) {
+        // Fallback: RPC not created yet, just attempt login natively
+      }
+
       final res = await _client.auth.signInWithPassword(
         email: email.trim(),
         password: password,
@@ -105,6 +116,24 @@ class AuthService {
       return AuthResult.fail(_mapAuthError(e.message));
     } catch (e) {
       return AuthResult.fail('Google sign-in failed. Please try again.');
+    }
+  }
+
+  // ── Update Metadata ───────────────────────────────────────────────────────
+  
+  Future<AuthResult> updateUserMetadata(Map<String, dynamic> metadata) async {
+    try {
+      final res = await _client.auth.updateUser(
+        UserAttributes(data: metadata),
+      );
+      if (res.user != null) {
+        return AuthResult.ok(res.user);
+      }
+      return AuthResult.fail('Could not update profile information.');
+    } on AuthException catch (e) {
+      return AuthResult.fail(_mapAuthError(e.message));
+    } catch (e) {
+      return AuthResult.fail('Unexpected error. Please try again.');
     }
   }
 

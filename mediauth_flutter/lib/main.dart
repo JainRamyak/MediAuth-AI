@@ -1,28 +1,44 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // keep for SystemChrome
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'theme/app_theme.dart';
 import 'theme/colors.dart';
+
 import 'screens/s01_splash.dart';
 import 'screens/s02_login.dart';
 import 'screens/s02a_signup.dart';
+import 'screens/s00_profile.dart';
+
 import 'screens/s03_dashboard.dart';
 import 'screens/s04_patient_info.dart';
 import 'screens/s05_medical_info.dart';
 import 'screens/s06_review_submit.dart';
-import 'screens/s06b_prompt_customization.dart'; // ← NEW
+import 'screens/s06b_prompt_customization.dart';
 import 'screens/s07_agent_pipeline.dart';
 import 'screens/s08_approved.dart';
 import 'screens/s09_denied.dart';
-import 'screens/s10_s11_appeal.dart';
 import 'screens/activity_screen.dart';
-import 'screens/s00_profile.dart';
 import 'screens/s12_agent_list.dart';
-import 'screens/s_reset_password.dart'; // ← new screen
+import 'screens/s13_prompt_editor.dart';
 
-import 'widgets/shared_widgets.dart';
+
+
+// ── Agent display name map (shared here so main doesn't need it in s12) ────────
+
+const _agentDisplayNames = {
+  'intake':           'Intake & History Agent',
+  'medical_analysis': 'Medical Analysis Agent',
+  'policy':           'Policy Intelligence Agent',
+  'justification':    'Justification Writer',
+  'submission':       'Submission Agent',
+  'appeal':           'Denial & Appeal Agent',
+  'claims':           'Claims Validation Agent',
+};
+
+// ── Entry point ───────────────────────────────────────────────────────────────
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,15 +46,19 @@ Future<void> main() async {
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
   ));
-  await dotenv.load(fileName: ".env");
+  await dotenv.load(fileName: '.env');
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
     debug: false,
   );
-
   runApp(const MediAuthApp());
 }
+
+// ── App ───────────────────────────────────────────────────────────────────────
 
 class MediAuthApp extends StatelessWidget {
   const MediAuthApp({super.key});
@@ -52,61 +72,60 @@ class MediAuthApp extends StatelessWidget {
   );
 }
 
-class _AppRoot extends StatefulWidget {
-  const _AppRoot();
-
-  @override
-  State<_AppRoot> createState() => _AppRootState();
-}
+// ── Navigation enum ───────────────────────────────────────────────────────────
 
 enum _Screen {
   splash,
   login,
   signup,
-  shell,
-  newRequest,
-  promptCustomization, // ← NEW (Screen 6B)
-  pipeline,
-  approved,
-  denied,
-  appeal,
-  escalation,
-  profile,
-  resetPassword, // ← new
+  resetPassword,
+  shell,          // 3-tab shell
+  newRequest,     // intake form (steps 1-3)
+  promptCustom,   // screen 6B
+  pipeline,       // screen 7
+  approved,       // screen 8
+  denied,         // screen 9
+  agentDetail,    // screen 13 — pushed from agents tab
+}
 
+// ── Root ──────────────────────────────────────────────────────────────────────
+
+class _AppRoot extends StatefulWidget {
+  const _AppRoot();
+  @override
+  State<_AppRoot> createState() => _AppRootState();
 }
 
 class _AppRootState extends State<_AppRoot> {
   _Screen _screen = _Screen.splash;
 
-  final _patient   = PatientFormData();
-  final _treatment = TreatmentFormData();
+  // Form state — reset on new request
+  PatientFormData     _patient   = PatientFormData();
+  TreatmentFormData   _treatment = TreatmentFormData();
   PromptSubmitPayload? _payload;
-  int   _intakeStep = 1;
+  int _intakeStep = 1;
 
-  /// Stores the raw API response from POST /api/v1/authorize.
-  /// Populated by AgentPipelineScreen before navigating to the result screen.
-  Map<String, dynamic>? _apiResult;
+  // Result from API
+  Map<String, dynamic> _apiResult = {};
 
+  // Agent detail
+  String _agentKey         = '';
+  String _agentDisplayName = '';
 
   void _go(_Screen s) => setState(() => _screen = s);
-
-  // ── Auth state listener ──────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
-    // supabase_flutter v2 automatically intercepts the deep-link callback
-    // (via authCallbackUrlHostname in Supabase.initialize()) and fires
-    // onAuthStateChange with AuthChangeEvent.signedIn — no custom channel needed.
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (!mounted) return;
       switch (data.event) {
-        // ── Existing session on cold start ────────────────────────────────
         case AuthChangeEvent.initialSession:
-          if (data.session != null) {
-            // User is already logged in → skip login entirely
-            _go(_Screen.shell);
+          final user = data.session?.user;
+          if (user != null) {
+            final ok = user.userMetadata?['profile_completed'] == true ||
+                       user.userMetadata?['date_of_birth'] != null;
+            _go(ok ? _Screen.shell : _Screen.signup);
           }
           break;
 
@@ -115,10 +134,14 @@ class _AppRootState extends State<_AppRoot> {
           break;
 
         case AuthChangeEvent.signedIn:
-          // Fires after a fresh sign-in (email/password or OAuth callback).
-          // Navigate to shell from any pre-auth screen.
-          if (_screen != _Screen.shell) {
-            _go(_Screen.shell);
+          final user = data.session?.user;
+          if (user != null &&
+              (_screen == _Screen.splash ||
+               _screen == _Screen.login  ||
+               _screen == _Screen.signup)) {
+            final ok = user.userMetadata?['profile_completed'] == true ||
+                       user.userMetadata?['date_of_birth'] != null;
+            _go(ok ? _Screen.shell : _Screen.signup);
           }
           break;
 
@@ -134,141 +157,160 @@ class _AppRootState extends State<_AppRoot> {
 
   @override
   Widget build(BuildContext context) {
-    return switch (_screen) {
+    final Widget child = switch (_screen) {
+      // ── Auth ───────────────────────────────────────────────────────────
       _Screen.splash => SplashScreen(
         onDone: () {
-          // If an active session exists, go straight to shell
           final user = Supabase.instance.client.auth.currentUser;
           _go(user != null ? _Screen.shell : _Screen.login);
         },
       ),
 
-      _Screen.login  => LoginScreen(
+      _Screen.login => LoginScreen(
         onLogin:  () => _go(_Screen.shell),
         onSignUp: () => _go(_Screen.signup),
       ),
 
       _Screen.signup => SignUpScreen(
         onSignUpSuccess: () => _go(_Screen.shell),
-        onSignIn: () => _go(_Screen.login),
+        onSignIn:        () => _go(_Screen.login),
       ),
-
-      // ── New: Reset Password screen ─────────────────────────────────────
 
       _Screen.resetPassword => ResetPasswordScreen(
         onDone: () => _go(_Screen.login),
       ),
 
-      _Screen.shell  => _ShellScreen(
-        onNewRequest: () {
-          _intakeStep = 1;
-          _go(_Screen.newRequest);
+      // ── Shell ──────────────────────────────────────────────────────────
+      _Screen.shell => _ShellScreen(
+        onNewRequest:  _startNewRequest,
+        onRequestTap:  _openResult,
+        onProfileTap:  () {}, // handled inside shell via 4th tab
+        onAgentDetail: (key) {
+          _agentKey         = key;
+          _agentDisplayName = _agentDisplayNames[key] ?? key;
+          _go(_Screen.agentDetail);
         },
-        onRequestTap: (r) {
-          switch (r.status) {
-            case AuthStatus.approved:  _go(_Screen.approved); break;
-            case AuthStatus.denied:    _go(_Screen.denied); break;
-            case AuthStatus.appealing: _go(_Screen.appeal); break;
-            case AuthStatus.pending:
-            case AuthStatus.submitted:
-              _go(_Screen.pipeline); break;
-          }
-        },
-        onProfileTap: () => _go(_Screen.profile),
       ),
 
+      // ── Intake flow ────────────────────────────────────────────────────
       _Screen.newRequest => _buildIntake(),
 
-      // ── Screen 6B — Prompt Customization (NEW) ─────────────────────────
-      _Screen.promptCustomization => PromptCustomizationScreen(
-        onBack: () {
-          // Return to Screen 6 (review step, intakeStep = 3)
-          setState(() {
-            _intakeStep = 3;
-            _screen = _Screen.newRequest;
-          });
-        },
-        onSkip: () {
-          _payload = null;
-          _go(_Screen.pipeline);
-        },
-        onSubmit: (payload) {
-          _payload = payload;
-          _go(_Screen.pipeline);
-        },
+      _Screen.promptCustom => PromptCustomizationScreen(
+        patient:   _patient,
+        treatment: _treatment,
+        onBack:    () => setState(() { _intakeStep = 3; _screen = _Screen.newRequest; }),
+        onSubmit:  (payload) { _payload = payload; _go(_Screen.pipeline); },
       ),
 
       _Screen.pipeline => AgentPipelineScreen(
-        patient: _patient,
+        patient:   _patient,
         treatment: _treatment,
-        payload: _payload,
-        onApproved: (result) {
-          _apiResult = result;
-          _go(_Screen.approved);
-        },
-        onDenied: (result) {
-          _apiResult = result;
-          _go(_Screen.denied);
-        },
+        payload:   _payload,
+        onApproved: (r) { _apiResult = r; _go(_Screen.approved); },
+        onDenied:   (r) { _apiResult = r; _go(_Screen.denied);   },
       ),
 
+      // ── Results ────────────────────────────────────────────────────────
       _Screen.approved => ApprovedScreen(
-        apiResult: _apiResult,
-        onDone: () => _go(_Screen.shell)),
+        result:       _apiResult,
+        onNewRequest: _startNewRequest,
+        onHome:       () => _go(_Screen.shell),
+      ),
 
       _Screen.denied => DeniedScreen(
-        apiResult: _apiResult,
-        onAppeal:    () => _go(_Screen.appeal),
-        onDashboard: () => _go(_Screen.shell),
+        result:       _apiResult,
+        onNewRequest: _startNewRequest,
+        onHome:       () => _go(_Screen.shell),
+        onApproved:   (r) { _apiResult = r; _go(_Screen.approved); },
       ),
 
-      _Screen.appeal => AppealProgressScreen(
-        level: 1,
-        onEscalate: () => _go(_Screen.escalation),
-        onDone: () => _go(_Screen.shell),
+      // ── Agent Detail ───────────────────────────────────────────────────
+      _Screen.agentDetail => PromptEditorScreen(
+        agentKey:    _agentKey,
+        displayName: _agentDisplayName,
+        onBack:      () => _go(_Screen.shell),
       ),
-
-      _Screen.escalation => EscalationScreen(
-        onDone: () => _go(_Screen.shell)),
-
-      _Screen.profile => ProfileScreen(
-        onLogout: () => _go(_Screen.login)),
     };
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (w, anim) {
+        return FadeTransition(
+          opacity: anim,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.05, 0),
+              end: Offset.zero,
+            ).animate(anim),
+            child: w,
+          ),
+        );
+      },
+      child: KeyedSubtree(
+        key: ValueKey(_screen),
+        child: child,
+      ),
+    );
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  void _startNewRequest() {
+    setState(() {
+      _patient    = PatientFormData();
+      _treatment  = TreatmentFormData();
+      _payload    = null;
+      _intakeStep = 1;
+      _screen     = _Screen.newRequest;
+    });
+  }
+
+  void _openResult(Map<String, dynamic> raw) {
+    _apiResult = raw;
+    final status = (raw['workflow_status'] ?? '').toString().toLowerCase();
+    if (status.contains('approved')) {
+      _go(_Screen.approved);
+    } else {
+      _go(_Screen.denied);
+    }
   }
 
   Widget _buildIntake() => switch (_intakeStep) {
     1 => PatientInfoScreen(
-      data: _patient,
+      data:   _patient,
       onBack: () => _go(_Screen.shell),
       onNext: () => setState(() => _intakeStep = 2),
     ),
     2 => MedicalInfoScreen(
-      data: _patient,
+      data:   _patient,
       onBack: () => setState(() => _intakeStep = 1),
       onNext: () => setState(() => _intakeStep = 3),
     ),
     _ => ReviewSubmitScreen(
-      patient: _patient,
-      treatment: _treatment,
-      onBack: () => setState(() => _intakeStep = 2),
-      onSubmit: () => _go(_Screen.pipeline),
-      onEditStep: (s) => setState(() => _intakeStep = s),
-      onCustomizePrompts: () => _go(_Screen.promptCustomization), // ← NEW
+      patient:    _patient,
+      treatment:  _treatment,
+      onBack:     () => setState(() => _intakeStep = 2),
+      onSubmit:   () => _go(_Screen.pipeline),
+      onCustomize: () => _go(_Screen.promptCustom),
     ),
   };
 }
 
-// ── 3-Tab Shell ───────────────────────────────────────────────────────────────
+// ── 4-Tab Shell ───────────────────────────────────────────────────────────────
 
 class _ShellScreen extends StatefulWidget {
   final VoidCallback onNewRequest;
-  final void Function(AuthRequest) onRequestTap;
+  final void Function(Map<String, dynamic> result) onRequestTap;
   final VoidCallback onProfileTap;
+  final void Function(String agentKey) onAgentDetail;
 
   const _ShellScreen({
     required this.onNewRequest,
     required this.onRequestTap,
     required this.onProfileTap,
+    required this.onAgentDetail,
   });
 
   @override
@@ -282,18 +324,25 @@ class _ShellScreenState extends State<_ShellScreen> {
   Widget build(BuildContext context) {
     final tabs = [
       DashboardScreen(
-        onNewRequest:  widget.onNewRequest,
-        onRequestTap:  widget.onRequestTap,
-        onProfileTap:  widget.onProfileTap,
+        onNewRequest: widget.onNewRequest,
+        onRequestTap: widget.onRequestTap,
+        onProfileTap: () => setState(() => _tab = 3),
       ),
       ActivityScreen(onRequestTap: widget.onRequestTap),
-      const AgentListScreen(),
+      AgentListScreen(onAgentTap: widget.onAgentDetail),
+      ProfileScreen(onLogout: () {
+        Supabase.instance.client.auth.signOut();
+      }),
     ];
 
     return Scaffold(
       body: IndexedStack(index: _tab, children: tabs),
       bottomNavigationBar: Container(
-        padding: const EdgeInsets.only(top: 12, bottom: 24, left: 16, right: 16),
+        padding: EdgeInsets.only(
+          top: 10,
+          left: 8, right: 8,
+          bottom: MediaQuery.of(context).padding.bottom + 6,
+        ),
         decoration: const BoxDecoration(
           color: C.surf0,
           border: Border(top: BorderSide(color: C.surf3, width: 0.5)),
@@ -301,23 +350,33 @@ class _ShellScreenState extends State<_ShellScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _NavBarItem(
-              icon: Icons.grid_view_rounded,
-              label: 'Dashboard',
-              isSelected: _tab == 0,
+            _NavItem(
+              icon:       Icons.home_outlined,
+              activeIcon: Icons.home_rounded,
+              label: 'Home',
+              active: _tab == 0,
               onTap: () => setState(() => _tab = 0),
             ),
-            _NavBarItem(
-              icon: Icons.history_rounded,
-              label: 'Activity',
-              isSelected: _tab == 1,
+            _NavItem(
+              icon:       Icons.history_outlined,
+              activeIcon: Icons.history_rounded,
+              label: 'History',
+              active: _tab == 1,
               onTap: () => setState(() => _tab = 1),
             ),
-            _NavBarItem(
-              icon: Icons.smart_toy_outlined,
-              label: 'AI Prompts',
-              isSelected: _tab == 2,
+            _NavItem(
+              icon:       Icons.smart_toy_outlined,
+              activeIcon: Icons.smart_toy_rounded,
+              label: 'Agents',
+              active: _tab == 2,
               onTap: () => setState(() => _tab = 2),
+            ),
+            _NavItem(
+              icon:       Icons.person_outline_rounded,
+              activeIcon: Icons.person_rounded,
+              label: 'Profile',
+              active: _tab == 3,
+              onTap: () => setState(() => _tab = 3),
             ),
           ],
         ),
@@ -326,16 +385,20 @@ class _ShellScreenState extends State<_ShellScreen> {
   }
 }
 
-class _NavBarItem extends StatelessWidget {
+// ── Nav item ──────────────────────────────────────────────────────────────────
+
+class _NavItem extends StatelessWidget {
   final IconData icon;
+  final IconData activeIcon;
   final String label;
-  final bool isSelected;
+  final bool active;
   final VoidCallback onTap;
 
-  const _NavBarItem({
+  const _NavItem({
     required this.icon,
+    required this.activeIcon,
     required this.label,
-    required this.isSelected,
+    required this.active,
     required this.onTap,
   });
 
@@ -344,31 +407,30 @@ class _NavBarItem extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 16 : 12,
-          vertical: 10,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected ? C.teal50 : Colors.transparent,
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Row(
+      child: SizedBox(
+        width: 72,
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon,
-              size: 22,
-              color: isSelected ? C.teal700 : C.textTertiary),
-            if (isSelected)
-              Padding(
-                padding: const EdgeInsets.only(left: 6),
-                child: Text(label,
-                  style: GoogleFonts.inter(
-                    fontSize: 14, fontWeight: FontWeight.w600,
-                    color: C.teal700)),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+              decoration: BoxDecoration(
+                color: active ? C.teal50 : Colors.transparent,
+                borderRadius: BorderRadius.circular(24),
               ),
+              child: Icon(
+                active ? activeIcon : icon,
+                size: 24,
+                color: active ? C.teal700 : C.textTertiary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(label,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                color: active ? C.teal700 : C.textTertiary)),
           ],
         ),
       ),

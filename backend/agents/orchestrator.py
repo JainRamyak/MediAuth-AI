@@ -60,7 +60,11 @@ def intake_node(state: AuthState) -> AuthState:
     result = run_intake_agent(state["raw_patient_input"])
     state["patient_profile"] = result
     state["current_agent"] = "intake"
-    log_agent(state, "intake", result.get("status", "unknown"))
+    name = result.get("name", "Patient")
+    insurer = result.get("insurer_name", "insurer")
+    diag_count = len(result.get("diagnoses") or [])
+    log_agent(state, "intake", result.get("status", "unknown"),
+              {"detail": f"Profiled {name} · {insurer} · {diag_count} diagnoses extracted"})
     return state
 
 
@@ -72,7 +76,12 @@ def medical_analysis_node(state: AuthState) -> AuthState:
     )
     state["medical_analysis"] = result
     state["current_agent"] = "medical_analysis"
-    log_agent(state, "medical_analysis", result.get("status", "unknown"))
+    icd = result.get("icd10_codes") or []
+    cpt = result.get("cpt_codes") or []
+    icd_codes = ", ".join([c.get("code", str(c)) if isinstance(c, dict) else str(c) for c in icd[:3]])
+    cpt_codes = ", ".join([c.get("code", str(c)) if isinstance(c, dict) else str(c) for c in cpt[:2]])
+    log_agent(state, "medical_analysis", result.get("status", "unknown"),
+              {"detail": f"ICD-10: {icd_codes or 'none'} · CPT: {cpt_codes or 'none'}"})
     return state
 
 
@@ -82,7 +91,10 @@ def policy_node(state: AuthState) -> AuthState:
     result = run_policy_agent(state["patient_profile"], insurer)
     state["policy_check"] = result
     state["current_agent"] = "policy"
-    log_agent(state, "policy", result.get("status", "unknown"))
+    req = "Required" if result.get("pre_auth_required") else "Not required"
+    missing = len(result.get("missing_documentation") or [])
+    log_agent(state, "policy", result.get("status", "unknown"),
+              {"detail": f"Pre-auth {req} · {missing} missing doc(s) identified"})
     return state
 
 
@@ -98,8 +110,11 @@ def claims_validation_node(state: AuthState) -> AuthState:
     )
     state["claims_validation"] = result
     state["current_agent"] = "claims_validation"
-    log_agent(state, "claims_validation", result.get("status", "unknown"),
-              {"risk_score": result.get("risk_score")})
+    risk = result.get("risk_score", "UNKNOWN")
+    issues = len(result.get("issues_found") or [])
+    log_agent(state, "claims", result.get("status", "unknown"),
+              {"detail": f"Denial risk: {risk} · {issues} issue(s) found",
+               "risk_score": risk})
     return state
 
 
@@ -112,7 +127,10 @@ def justification_node(state: AuthState) -> AuthState:
     )
     state["justification_letter"] = letter
     state["current_agent"] = "justification"
-    log_agent(state, "justification", "success")
+    letter_str = letter.get("letter", "") if isinstance(letter, dict) else str(letter or "")
+    word_count = len(letter_str.split())
+    log_agent(state, "justification", "success",
+              {"detail": f"Prior-auth letter drafted · {word_count} words"})
     return state
 
 
@@ -125,8 +143,11 @@ def submission_node(state: AuthState) -> AuthState:
     state["submission_result"] = result
     state["workflow_status"] = result["decision"]
     state["current_agent"] = "submission"
+    ref = result.get("reference_number", "N/A")
+    decision = result["decision"].upper()
     log_agent(state, "submission", result["decision"],
-              {"reference": result.get("reference_number")})
+              {"detail": f"Decision: {decision} · Ref: {ref}",
+               "reference": ref})
     return state
 
 
@@ -146,7 +167,9 @@ def appeal_node(state: AuthState) -> AuthState:
     state["appeal_level"] = new_level
     state["workflow_status"] = "appealing"
     state["current_agent"] = "appeal"
-    log_agent(state, f"appeal_level_{new_level}", "submitted")
+    word_count = len(str(letter or "").split())
+    log_agent(state, "appeal", "submitted",
+              {"detail": f"Level {new_level} appeal letter filed · {word_count} words"})
     return state
 
 

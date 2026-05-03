@@ -140,7 +140,7 @@ class _SplashScreenState extends State<SplashScreen>
 
                     // ── Brand ────────────────────────────────────────────────
                     Text('MediAuth AI',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.outfit(
                         fontSize: 34, fontWeight: FontWeight.w700,
                         color: C.textPrimary, letterSpacing: -1)),
                     const SizedBox(height: 10),

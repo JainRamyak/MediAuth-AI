@@ -1,44 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:file_picker/file_picker.dart';
 import '../theme/colors.dart';
 import '../widgets/shared_widgets.dart';
 
-// ── Patient Info Form Data ────────────────────────────────────────────────────
+// ── Form Data Models ──────────────────────────────────────────────────────────
 
 class PatientFormData {
-  String fullName      = 'Margaret Thompson';
-  DateTime? dateOfBirth = DateTime(1982, 5, 14);
-  String insurer       = 'UnitedHealth';
-  String policyNumber  = 'UHG-9844-XYZ';
-  String memberId      = 'M-889012';
-
-  // Medical info (Step 2)
-  List<String> diagnoses  = [];
+  String fullName = '';
+  DateTime? dateOfBirth;
+  String insurer = '';
+  String policyNumber = '';
+  String memberId = '';
+  List<String> diagnoses = [];
   List<String> medications = [];
-  List<String> allergies  = [];
-  String medicalHistory   = '';
-  String doctorName       = '';
-
-  List<PlatformFile> uploadedFiles = [];
+  String allergies = '';
+  String medicalHistory = '';
+  String doctorName = '';
 }
 
-// ── Insurer list ──────────────────────────────────────────────────────────────
+class TreatmentFormData {
+  String requestedTreatment = '';
+  String whyNeeded = '';
+}
 
-const _insurers = [
-  'UnitedHealth',
-  'Blue Cross Blue Shield',
-  'Aetna',
-  'Cigna',
-  'Humana',
-  'Kaiser Permanente',
-  'Anthem',
-  'Centene',
-  'Molina Healthcare',
-  'Other',
-];
-
-// ── S04 Personal & Insurance Info — Step 1 of 3 ──────────────────────────────
+// ── Screen 4 — Patient & Insurance Info ───────────────────────────────────────
 
 class PatientInfoScreen extends StatefulWidget {
   final PatientFormData data;
@@ -58,314 +43,291 @@ class PatientInfoScreen extends StatefulWidget {
 
 class _PatientInfoScreenState extends State<PatientInfoScreen> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _nameCtrl;
-  late TextEditingController _policyCtrl;
-  late TextEditingController _memberCtrl;
+  late final TextEditingController _name;
+  late final TextEditingController _policy;
+  late final TextEditingController _member;
 
-  bool get _canProceed =>
-      widget.data.fullName.trim().isNotEmpty &&
-      widget.data.dateOfBirth != null &&
-      widget.data.insurer.isNotEmpty &&
-      widget.data.policyNumber.trim().isNotEmpty;
+  static const _insurers = [
+    'BlueCross', 'Aetna', 'UHC', 'Cigna', 'Humana', 'Kaiser', 'Medicaid', 'Medicare', 'Other',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _nameCtrl   = TextEditingController(text: widget.data.fullName);
-    _policyCtrl = TextEditingController(text: widget.data.policyNumber);
-    _memberCtrl = TextEditingController(text: widget.data.memberId);
+    _name   = TextEditingController(text: widget.data.fullName);
+    _policy = TextEditingController(text: widget.data.policyNumber);
+    _member = TextEditingController(text: widget.data.memberId);
   }
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
-    _policyCtrl.dispose();
-    _memberCtrl.dispose();
+    _name.dispose(); _policy.dispose(); _member.dispose();
     super.dispose();
   }
 
+  void _save() {
+    widget.data.fullName = _name.text.trim();
+    widget.data.policyNumber = _policy.text.trim();
+    widget.data.memberId = _member.text.trim();
+  }
+
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final dt = await showDatePicker(
       context: context,
-      initialDate: widget.data.dateOfBirth ?? DateTime(1980),
-      firstDate: DateTime(1920),
-      lastDate: DateTime.now(),
-      helpText: 'Select Date of Birth',
+      initialDate: widget.data.dateOfBirth ?? DateTime(1985, 1, 1),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now().subtract(const Duration(days: 1)),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(
-            primary: C.teal500,
-            onPrimary: C.white,
-            onSurface: C.textPrimary,
-          ),
-        ),
+          colorScheme: const ColorScheme.light(primary: C.teal500)),
         child: child!,
       ),
     );
-    if (picked != null) setState(() => widget.data.dateOfBirth = picked);
+    if (dt != null) setState(() => widget.data.dateOfBirth = dt);
   }
 
-  String _formatDob(DateTime? d) {
-    if (d == null) return '';
-    return '${d.day.toString().padLeft(2, '0')} / '
-        '${d.month.toString().padLeft(2, '0')} / ${d.year}';
+  Future<void> _pickInsurer() async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        final q = ValueNotifier<String>('');
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(width: 40, height: 4,
+                decoration: BoxDecoration(color: C.surf3, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Search insurer…',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    filled: true, fillColor: C.surf2,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: C.surf3, width: 0.5)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  onChanged: (v) => q.value = v.toLowerCase(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: ValueListenableBuilder<String>(
+                  valueListenable: q,
+                  builder: (_, query, __) {
+                    final filtered = _insurers
+                        .where((i) => i.toLowerCase().contains(query))
+                        .toList();
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: filtered.length,
+                      itemBuilder: (_, i) => ListTile(
+                        title: Text(filtered[i]),
+                        onTap: () => Navigator.pop(ctx, filtered[i]),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (result != null) setState(() => widget.data.insurer = result);
   }
+
+  String? _validateName(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Full name is required';
+    return null;
+  }
+
+  String? _validatePolicy(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Policy number is required';
+    return null;
+  }
+
+  bool get _canContinue =>
+      _name.text.trim().isNotEmpty &&
+      widget.data.dateOfBirth != null &&
+      widget.data.insurer.isNotEmpty &&
+      _policy.text.trim().isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
+    final dob = widget.data.dateOfBirth;
+    final dobStr = dob != null
+        ? '${dob.day.toString().padLeft(2, '0')} / ${dob.month.toString().padLeft(2, '0')} / ${dob.year}'
+        : null;
+
     return Scaffold(
       backgroundColor: C.surf1,
       appBar: AppBar(
         backgroundColor: C.surf0,
         surfaceTintColor: Colors.transparent,
-        title: Text(
-          'New Authorization',
-          style: GoogleFonts.inter(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: C.textPrimary,
-          ),
-        ),
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
+          icon: const Icon(Icons.arrow_back_rounded, color: C.textPrimary),
           onPressed: widget.onBack,
         ),
+        title: Text('New Authorization',
+          style: GoogleFonts.inter(
+            fontSize: 16, fontWeight: FontWeight.w700, color: C.textPrimary)),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
+      body: Form(
+        key: _formKey,
+        onChanged: () => setState(() {}),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              StepHeader(
-                current: 1,
-                total: 3,
-                title: 'Personal & Insurance Info',
-              ),
-              const SizedBox(height: 24),
-
-              // ── Helper tip ─────────────────────────────────────────────────
-              InfoBanner(
-                message:
-                    'Your Policy Number and Member ID are on the front of your insurance card.',
-                icon: Icons.credit_card_rounded,
-              ),
+              StepHeader(current: 1, total: 3, title: 'Personal & Insurance Info'),
               const SizedBox(height: 20),
 
-              // ── Personal Info ──────────────────────────────────────────────
-              SectionLabel('Your Information', Icons.person_outline_rounded),
-              const SizedBox(height: 10),
+              // ── Personal ─────────────────────────────────────────────────
+              SectionLabel('About the Patient', Icons.person_outline_rounded),
+              const SizedBox(height: 12),
 
-              MediCard(
-                child: Column(
-                  children: [
-                    // Full Name
-                    _FieldLabel('Full Name', required: true),
-                    TextFormField(
-                      controller: _nameCtrl,
-                      textCapitalization: TextCapitalization.words,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        hintText: 'e.g. John Doe',
-                        prefixIcon:
-                            Icon(Icons.person_outline_rounded, size: 20),
-                      ),
-                      onChanged: (v) =>
-                          setState(() => widget.data.fullName = v),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty)
-                              ? 'Full name is required'
-                              : null,
-                    ),
-                    const SizedBox(height: 16),
+              TextFormField(
+                controller: _name,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Full Name *',
+                  hintText: 'e.g. John Doe',
+                  prefixIcon: Icon(Icons.person_outline_rounded, size: 18)),
+                validator: _validateName,
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
 
-                    // Date of Birth
-                    _FieldLabel('Date of Birth', required: true),
-                    GestureDetector(
-                      onTap: _pickDate,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: C.surf2,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: widget.data.dateOfBirth == null
-                                ? C.surf3
-                                : C.teal500,
-                            width: widget.data.dateOfBirth == null ? 0.5 : 1.0,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.calendar_today_outlined,
-                                size: 18, color: C.textTertiary),
-                            const SizedBox(width: 10),
-                            Text(
-                              widget.data.dateOfBirth != null
-                                  ? _formatDob(widget.data.dateOfBirth)
-                                  : 'DD / MM / YYYY',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: widget.data.dateOfBirth != null
-                                    ? C.textPrimary
-                                    : C.textTertiary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+              GestureDetector(
+                onTap: _pickDate,
+                child: Container(
+                  height: 52,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: C.surf2,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: C.surf3, width: 0.5),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.calendar_today_outlined, size: 18, color: C.textTertiary),
+                    const SizedBox(width: 10),
+                    Text(dobStr ?? 'Date of Birth *',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: dob != null ? C.textPrimary : C.textTertiary)),
+                  ]),
                 ),
               ),
+              if (widget.data.dateOfBirth == null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 14, top: 4),
+                  child: Text('Date of birth is required',
+                    style: GoogleFonts.inter(fontSize: 11, color: C.red500)),
+                ),
               const SizedBox(height: 20),
 
-              // ── Insurance Info ─────────────────────────────────────────────
-              SectionLabel(
-                  'Insurance Details', Icons.health_and_safety_outlined),
-              const SizedBox(height: 10),
+              // ── Insurance ─────────────────────────────────────────────────
+              SectionLabel('Insurance Details', Icons.shield_outlined),
+              const SizedBox(height: 12),
 
-              MediCard(
-                child: Column(
-                  children: [
-                    // Insurance Provider dropdown
-                    _FieldLabel('Insurance Provider', required: true),
-                    DropdownButtonFormField<String>(
-                      value: widget.data.insurer.isNotEmpty
-                          ? widget.data.insurer
-                          : null,
-                      decoration: InputDecoration(
-                        hintText: 'Select your insurer...',
-                        prefixIcon: const Icon(
-                            Icons.business_outlined,
-                            size: 20),
-                        filled: true,
-                        fillColor: C.surf2,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide:
-                              const BorderSide(color: C.surf3, width: 0.5),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide:
-                              const BorderSide(color: C.surf3, width: 0.5),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide:
-                              const BorderSide(color: C.teal500, width: 1.5),
-                        ),
-                      ),
-                      items: _insurers
-                          .map((ins) => DropdownMenuItem(
-                                value: ins,
-                                child: Text(ins,
-                                    style: GoogleFonts.inter(
-                                        fontSize: 14,
-                                        color: C.textPrimary)),
-                              ))
-                          .toList(),
-                      onChanged: (v) =>
-                          setState(() => widget.data.insurer = v ?? ''),
-                      validator: (v) => (v == null || v.isEmpty)
-                          ? 'Please select your insurance provider'
-                          : null,
+              GestureDetector(
+                onTap: _pickInsurer,
+                child: Container(
+                  height: 52,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: C.surf2,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: C.surf3, width: 0.5),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.business_outlined, size: 18, color: C.textTertiary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(widget.data.insurer.isEmpty
+                          ? 'Insurance Provider *'
+                          : widget.data.insurer,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: widget.data.insurer.isEmpty ? C.textTertiary : C.textPrimary)),
                     ),
-                    const SizedBox(height: 16),
-
-                    // Policy Number
-                    _FieldLabel('Policy Number', required: true),
-                    TextFormField(
-                      controller: _policyCtrl,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        hintText: 'e.g. BCX-12345',
-                        prefixIcon: Icon(Icons.tag_rounded, size: 20),
-                      ),
-                      onChanged: (v) =>
-                          setState(() => widget.data.policyNumber = v),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty)
-                              ? 'Policy number is required'
-                              : null,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Member ID (optional)
-                    _FieldLabel('Member ID', required: false),
-                    TextFormField(
-                      controller: _memberCtrl,
-                      textInputAction: TextInputAction.done,
-                      decoration: const InputDecoration(
-                        hintText: 'e.g. M-789012  (optional)',
-                        prefixIcon:
-                            Icon(Icons.badge_outlined, size: 20),
-                      ),
-                      onChanged: (v) =>
-                          setState(() => widget.data.memberId = v),
-                    ),
-                  ],
+                    const Icon(Icons.keyboard_arrow_down_rounded, color: C.textTertiary),
+                  ]),
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 12),
+
+              TextFormField(
+                controller: _policy,
+                decoration: const InputDecoration(
+                  labelText: 'Policy Number *',
+                  hintText: 'e.g. BCX-12345',
+                  prefixIcon: Icon(Icons.badge_outlined, size: 18)),
+                validator: _validatePolicy,
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+
+              TextFormField(
+                controller: _member,
+                decoration: const InputDecoration(
+                  labelText: 'Member ID (Optional)',
+                  hintText: 'e.g. M-789012',
+                  prefixIcon: Icon(Icons.numbers_rounded, size: 18)),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 16),
+
+              // Info card
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: C.teal50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: C.teal500.withValues(alpha: 0.2)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.credit_card_outlined, size: 16, color: C.teal600),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Your Policy Number and Member ID are printed on the front of your insurance card.',
+                      style: GoogleFonts.inter(fontSize: 12, color: C.teal700, height: 1.4)),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 32),
 
               PrimaryButton(
-                label: 'Next: Medical Info →',
+                label: 'Next: Medical Information →',
                 icon: Icons.arrow_forward_rounded,
-                onPressed: _canProceed
-                    ? () {
-                        if (_formKey.currentState!.validate()) {
-                          widget.onNext();
-                        }
-                      }
-                    : null,
+                onPressed: _canContinue ? () {
+                  if (_formKey.currentState!.validate()) {
+                    _save();
+                    widget.onNext();
+                  }
+                } : null,
               ),
               const SizedBox(height: 24),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ── Field label helper ────────────────────────────────────────────────────────
-
-class _FieldLabel extends StatelessWidget {
-  final String label;
-  final bool required;
-  const _FieldLabel(this.label, {this.required = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: C.textSecondary,
-            ),
-          ),
-          if (required) ...[
-            const SizedBox(width: 3),
-            Text(
-              ' *',
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: C.red500,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }
