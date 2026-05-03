@@ -1,10 +1,38 @@
 /// ---------------------------------------------------------------------------
-/// auth_service.dart  — uses Supabase OAuth browser flow for Google Sign-In
+/// auth_service.dart  — Custom FastAPI Authentication
 /// ---------------------------------------------------------------------------
 
-import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'supabase_config.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../api/api_service.dart';
+
+// ── Models ──────────────────────────────────────────────────────────────────
+
+class User {
+  final String id;
+  final String email;
+  final String? fullName;
+
+  const User({required this.id, required this.email, this.fullName});
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: json['user_id']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      fullName: json['full_name']?.toString() ?? json['name']?.toString(),
+    );
+  }
+}
+
+enum AuthChangeEvent { initialSession, signedIn, signedOut }
+
+class AuthState {
+  final AuthChangeEvent event;
+  final User? user;
+  const AuthState(this.event, this.user);
+}
 
 // ── Result wrapper ──────────────────────────────────────────────────────────
 
@@ -31,16 +59,34 @@ class AuthResult {
 class AuthService {
   AuthService._();
   static final AuthService instance = AuthService._();
-
-  SupabaseClient get _client => Supabase.instance.client;
+  
+  static const _storage = FlutterSecureStorage();
+  
+  final _authStateController = StreamController<AuthState>.broadcast();
+  User? _currentUser;
 
   // ── Current session / user ──────────────────────────────────────────────
 
-  User? get currentUser => _client.auth.currentUser;
-  Session? get currentSession => _client.auth.currentSession;
-  bool get isSignedIn => currentUser != null;
+  User? get currentUser => _currentUser;
+  bool get isSignedIn => _currentUser != null;
 
-  Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
+  Stream<AuthState> get onAuthStateChange => _authStateController.stream;
+
+  // ── Initialization (called once in main.dart) ───────────────────────────
+  
+  Future<void> initialize() async {
+    final token = await _storage.read(key: 'access_token');
+    final userId = await _storage.read(key: 'user_id');
+    final email = await _storage.read(key: 'email');
+    final fullName = await _storage.read(key: 'full_name');
+    
+    if (token != null && userId != null && email != null) {
+      _currentUser = User(id: userId, email: email, fullName: fullName);
+      _authStateController.add(AuthState(AuthChangeEvent.initialSession, _currentUser));
+    } else {
+      _authStateController.add(AuthState(AuthChangeEvent.initialSession, null));
+    }
+  }
 
   // ── Email + Password Login ──────────────────────────────────────────────
 
@@ -49,26 +95,32 @@ class AuthService {
     required String password,
   }) async {
     try {
-      // 1. Verify if the email is present in the database before logging in.
-      // If the user hasn't deployed the SQL RPC, this catch block falls back to default logic.
-      try {
-        final emailExists = await _client.rpc('check_email_exists', params: {'lookup_email': email.trim()});
-        if (emailExists == false) {
-          return AuthResult.fail('EMAIL_NOT_FOUND');
-        }
-      } catch (_) {
-        // Fallback: RPC not created yet, just attempt login natively
-      }
+      final url = Uri.parse('${ApiService.baseUrl}/auth/login');
+      final res = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email.trim(), 'password': password}),
+      ).timeout(const Duration(seconds: 15));
 
-      final res = await _client.auth.signInWithPassword(
-        email: email.trim(),
-        password: password,
-      );
-      return AuthResult.ok(res.user);
-    } on AuthException catch (e) {
-      return AuthResult.fail(_mapAuthError(e.message));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        
+        await _storage.write(key: 'access_token', value: body['access_token']);
+        await _storage.write(key: 'user_id', value: body['user_id']);
+        await _storage.write(key: 'email', value: body['email']);
+        await _storage.write(key: 'full_name', value: body['full_name']);
+        
+        _currentUser = User.fromJson(body);
+        _authStateController.add(AuthState(AuthChangeEvent.signedIn, _currentUser));
+        
+        return AuthResult.ok(_currentUser);
+      } else if (res.statusCode == 401) {
+        return AuthResult.fail('Incorrect email or password.');
+      } else {
+        return AuthResult.fail('Login failed (${res.statusCode})');
+      }
     } catch (e) {
-      return AuthResult.fail('Unexpected error. Please try again.');
+      return AuthResult.fail('Network error during login.');
     }
   }
 
@@ -77,107 +129,47 @@ class AuthService {
   Future<AuthResult> signUpWithEmail({
     required String email,
     required String password,
-    Map<String, dynamic> metadata = const {},
+    required String fullName,
   }) async {
     try {
-      final res = await _client.auth.signUp(
-        email: email.trim(),
-        password: password,
-        data: metadata,
-      );
+      final url = Uri.parse('${ApiService.baseUrl}/auth/register');
+      final res = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email.trim(),
+          'password': password,
+          'full_name': fullName.trim()
+        }),
+      ).timeout(const Duration(seconds: 15));
 
-      if (res.user != null) {
-        return AuthResult.ok(res.user);
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        
+        await _storage.write(key: 'access_token', value: body['access_token']);
+        await _storage.write(key: 'user_id', value: body['user_id']);
+        await _storage.write(key: 'email', value: body['email']);
+        await _storage.write(key: 'full_name', value: body['full_name']);
+        
+        _currentUser = User.fromJson(body);
+        _authStateController.add(AuthState(AuthChangeEvent.signedIn, _currentUser));
+        
+        return AuthResult.ok(_currentUser);
+      } else if (res.statusCode == 400) {
+        return AuthResult.fail('Email already registered.');
+      } else {
+        return AuthResult.fail('Sign up failed (${res.statusCode})');
       }
-
-      return AuthResult.fail('Sign up failed. Please try again.');
-    } on AuthException catch (e) {
-      return AuthResult.fail(_mapAuthError(e.message));
     } catch (e) {
-      return AuthResult.fail('Unexpected error. Please try again.');
-    }
-  }
-
-  // ── Google Sign-In (browser OAuth flow) ────────────────────────────────
-  // Opens a browser/Chrome Custom Tab for Google sign-in.
-  // Supabase handles the token exchange and calls back via the deep link.
-
-  Future<AuthResult> signInWithGoogle() async {
-    try {
-      await _client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: kIsWeb ? null : kSupabaseRedirectUrl,
-      );
-      // signInWithOAuth launches the browser and returns immediately.
-      // The actual sign-in result arrives via the onAuthStateChange stream
-      // in main.dart. Return a success-pending sentinel to unblock the UI.
-      return AuthResult.ok(null);
-    } on AuthException catch (e) {
-      return AuthResult.fail(_mapAuthError(e.message));
-    } catch (e) {
-      return AuthResult.fail('Google sign-in failed. Please try again.');
-    }
-  }
-
-  // ── Update Metadata ───────────────────────────────────────────────────────
-  
-  Future<AuthResult> updateUserMetadata(Map<String, dynamic> metadata) async {
-    try {
-      final res = await _client.auth.updateUser(
-        UserAttributes(data: metadata),
-      );
-      if (res.user != null) {
-        return AuthResult.ok(res.user);
-      }
-      return AuthResult.fail('Could not update profile information.');
-    } on AuthException catch (e) {
-      return AuthResult.fail(_mapAuthError(e.message));
-    } catch (e) {
-      return AuthResult.fail('Unexpected error. Please try again.');
-    }
-  }
-
-  // ── Password Reset ──────────────────────────────────────────────────────
-
-  Future<AuthResult> sendPasswordResetEmail(String email) async {
-    try {
-      await _client.auth.resetPasswordForEmail(
-        email.trim(),
-        redirectTo: kIsWeb ? null : kSupabaseRedirectUrl,
-      );
-      return AuthResult.ok(null);
-    } on AuthException catch (e) {
-      return AuthResult.fail(_mapAuthError(e.message));
-    } catch (e) {
-      return AuthResult.fail('Could not send reset email. Please try again.');
+      return AuthResult.fail('Network error during sign up.');
     }
   }
 
   // ── Sign Out ────────────────────────────────────────────────────────────
 
   Future<void> signOut() async {
-    try {
-      await _client.auth.signOut();
-    } catch (_) {}
-  }
-
-  // ── Helpers ─────────────────────────────────────────────────────────────
-
-  String _mapAuthError(String raw) {
-    final msg = raw.toLowerCase();
-    if (msg.contains('invalid login credentials') ||
-        msg.contains('invalid email or password')) {
-      return 'Incorrect email or password. Please try again.';
-    }
-    if (msg.contains('email not confirmed')) {
-      return 'Please verify your email address before signing in.';
-    }
-    if (msg.contains('user already registered')) {
-      return 'An account with this email already exists.';
-    }
-    if (msg.contains('password should be')) {
-      return 'Password must be at least 6 characters.';
-    }
-    return raw;
+    await _storage.deleteAll();
+    _currentUser = null;
+    _authStateController.add(const AuthState(AuthChangeEvent.signedOut, null));
   }
 }

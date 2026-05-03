@@ -100,3 +100,19 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
 def get_me(db: Session = Depends(get_db)):
     """Test endpoint — verify your token works."""
     return {"message": "Token valid. Auth system working."}
+
+@router.get("/fix-db")
+def fix_db(db: Session = Depends(get_db)):
+    from sqlalchemy import text
+    try:
+        db.execute(text("DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;"))
+        db.execute(text("DROP TRIGGER IF EXISTS on_auth_user_updated ON auth.users;"))
+        db.execute(text("DROP FUNCTION IF EXISTS public.handle_user_sync();"))
+        db.execute(text("DROP TABLE IF EXISTS public.users CASCADE;"))
+        db.commit()
+        from models.init_db import create_tables
+        create_tables()
+        return {"success": True, "message": "Users table dropped and recreated via SQLAlchemy."}
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}

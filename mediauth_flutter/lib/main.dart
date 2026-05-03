@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'auth/auth_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/colors.dart';
 
@@ -23,8 +23,6 @@ import 'screens/s09_denied.dart';
 import 'screens/activity_screen.dart';
 import 'screens/s12_agent_list.dart';
 import 'screens/s13_prompt_editor.dart';
-
-
 
 // ── Agent display name map (shared here so main doesn't need it in s12) ────────
 
@@ -47,14 +45,10 @@ Future<void> main() async {
     statusBarIconBrightness: Brightness.dark,
   ));
   await dotenv.load(fileName: '.env');
-  await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
-    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-    authOptions: const FlutterAuthClientOptions(
-      authFlowType: AuthFlowType.pkce,
-    ),
-    debug: false,
-  );
+  
+  // Initialize our custom API auth service (reads JWT from secure storage)
+  await AuthService.instance.initialize();
+  
   runApp(const MediAuthApp());
 }
 
@@ -117,32 +111,15 @@ class _AppRootState extends State<_AppRoot> {
   @override
   void initState() {
     super.initState();
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    AuthService.instance.onAuthStateChange.listen((data) {
       if (!mounted) return;
       switch (data.event) {
         case AuthChangeEvent.initialSession:
-          final user = data.session?.user;
-          if (user != null) {
-            final ok = user.userMetadata?['profile_completed'] == true ||
-                       user.userMetadata?['date_of_birth'] != null;
-            _go(ok ? _Screen.shell : _Screen.signup);
-          }
-          break;
-
-        case AuthChangeEvent.passwordRecovery:
-          _go(_Screen.resetPassword);
-          break;
-
         case AuthChangeEvent.signedIn:
-          final user = data.session?.user;
-          if (user != null &&
-              (_screen == _Screen.splash ||
-               _screen == _Screen.login  ||
-               _screen == _Screen.signup)) {
-            final ok = user.userMetadata?['profile_completed'] == true ||
-                       user.userMetadata?['date_of_birth'] != null;
-            _go(ok ? _Screen.shell : _Screen.signup);
-          }
+          final user = data.user;
+          // Simple rule: if we have a user, proceed to shell. 
+          // (Removed Supabase metadata checks for simplicity in custom auth)
+          _go(user != null ? _Screen.shell : _Screen.login);
           break;
 
         case AuthChangeEvent.signedOut:
@@ -161,7 +138,7 @@ class _AppRootState extends State<_AppRoot> {
       // ── Auth ───────────────────────────────────────────────────────────
       _Screen.splash => SplashScreen(
         onDone: () {
-          final user = Supabase.instance.client.auth.currentUser;
+          final user = AuthService.instance.currentUser;
           _go(user != null ? _Screen.shell : _Screen.login);
         },
       ),
@@ -176,9 +153,8 @@ class _AppRootState extends State<_AppRoot> {
         onSignIn:        () => _go(_Screen.login),
       ),
 
-      _Screen.resetPassword => ResetPasswordScreen(
-        onDone: () => _go(_Screen.login),
-      ),
+      // Dummy reset password for now
+      _Screen.resetPassword => const Scaffold(body: Center(child: Text("Reset not implemented"))),
 
       // ── Shell ──────────────────────────────────────────────────────────
       _Screen.shell => _ShellScreen(
@@ -331,54 +307,64 @@ class _ShellScreenState extends State<_ShellScreen> {
       ActivityScreen(onRequestTap: widget.onRequestTap),
       AgentListScreen(onAgentTap: widget.onAgentDetail),
       ProfileScreen(onLogout: () {
-        Supabase.instance.client.auth.signOut();
+        AuthService.instance.signOut();
       }),
     ];
 
     return Scaffold(
+      extendBody: true, // Allow content to flow under the floating nav
       body: IndexedStack(index: _tab, children: tabs),
-      bottomNavigationBar: Container(
-        padding: EdgeInsets.only(
-          top: 10,
-          left: 8, right: 8,
-          bottom: MediaQuery.of(context).padding.bottom + 6,
-        ),
-        decoration: const BoxDecoration(
-          color: C.surf0,
-          border: Border(top: BorderSide(color: C.surf3, width: 0.5)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _NavItem(
-              icon:       Icons.home_outlined,
-              activeIcon: Icons.home_rounded,
-              label: 'Home',
-              active: _tab == 0,
-              onTap: () => setState(() => _tab = 0),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: C.surf0.withOpacity(0.95), // Semi-transparent for modern feel
+              borderRadius: BorderRadius.circular(40),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                )
+              ],
+              border: Border.all(color: C.surf3, width: 0.5),
             ),
-            _NavItem(
-              icon:       Icons.history_outlined,
-              activeIcon: Icons.history_rounded,
-              label: 'History',
-              active: _tab == 1,
-              onTap: () => setState(() => _tab = 1),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _NavItem(
+                  icon:       Icons.home_outlined,
+                  activeIcon: Icons.home_rounded,
+                  label: 'Home',
+                  active: _tab == 0,
+                  onTap: () => setState(() => _tab = 0),
+                ),
+                _NavItem(
+                  icon:       Icons.history_outlined,
+                  activeIcon: Icons.history_rounded,
+                  label: 'History',
+                  active: _tab == 1,
+                  onTap: () => setState(() => _tab = 1),
+                ),
+                _NavItem(
+                  icon:       Icons.smart_toy_outlined,
+                  activeIcon: Icons.smart_toy_rounded,
+                  label: 'Agents',
+                  active: _tab == 2,
+                  onTap: () => setState(() => _tab = 2),
+                ),
+                _NavItem(
+                  icon:       Icons.person_outline_rounded,
+                  activeIcon: Icons.person_rounded,
+                  label: 'Profile',
+                  active: _tab == 3,
+                  onTap: () => setState(() => _tab = 3),
+                ),
+              ],
             ),
-            _NavItem(
-              icon:       Icons.smart_toy_outlined,
-              activeIcon: Icons.smart_toy_rounded,
-              label: 'Agents',
-              active: _tab == 2,
-              onTap: () => setState(() => _tab = 2),
-            ),
-            _NavItem(
-              icon:       Icons.person_outline_rounded,
-              activeIcon: Icons.person_rounded,
-              label: 'Profile',
-              active: _tab == 3,
-              onTap: () => setState(() => _tab = 3),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -407,30 +393,36 @@ class _NavItem extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: 72,
-        child: Column(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.symmetric(
+          horizontal: active ? 18 : 12,
+          vertical: 10,
+        ),
+        decoration: BoxDecoration(
+          color: active ? C.teal50 : Colors.transparent,
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-              decoration: BoxDecoration(
-                color: active ? C.teal50 : Colors.transparent,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Icon(
-                active ? activeIcon : icon,
-                size: 24,
-                color: active ? C.teal700 : C.textTertiary,
-              ),
+            Icon(
+              active ? activeIcon : icon,
+              size: 24,
+              color: active ? C.teal700 : C.textTertiary,
             ),
-            const SizedBox(height: 2),
-            Text(label,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                color: active ? C.teal700 : C.textTertiary)),
+            if (active) ...[
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: C.teal700,
+                ),
+              ),
+            ],
           ],
         ),
       ),

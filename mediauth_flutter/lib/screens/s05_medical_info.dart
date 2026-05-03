@@ -88,13 +88,16 @@ class _MedicalInfoScreenState extends State<MedicalInfoScreen> {
           style: GoogleFonts.inter(
             fontSize: 16, fontWeight: FontWeight.w700, color: C.textPrimary)),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            StepHeader(current: 2, total: 3, title: 'Medical Information'),
-            const SizedBox(height: 16),
+      body: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  StepHeader(current: 2, total: 3, title: 'Medical Information'),
+                  const SizedBox(height: 20),
 
             // Reassurance banner
             if (!_bannerDismissed)
@@ -214,6 +217,43 @@ class _MedicalInfoScreenState extends State<MedicalInfoScreen> {
             ),
             const SizedBox(height: 20),
 
+            // Admission Type
+            SectionLabel('Admission Type', Icons.local_hospital_outlined),
+            const SizedBox(height: 10),
+            Container(
+              decoration: BoxDecoration(
+                color: C.surf2,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: C.surf3, width: 0.5),
+              ),
+              child: Row(
+                children: ['Planned', 'Emergency'].map((type) {
+                  final isSelected = widget.data.admissionType == type;
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => widget.data.admissionType = type),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected ? C.teal500 : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(type,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                            color: isSelected ? Colors.white : C.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 20),
+
             // Treating physician
             SectionLabel('Treating Physician', Icons.person_search_outlined),
             const SizedBox(height: 10),
@@ -225,39 +265,50 @@ class _MedicalInfoScreenState extends State<MedicalInfoScreen> {
             ),
             const SizedBox(height: 32),
 
-            Row(children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: widget.onBack,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: C.textPrimary,
-                    side: const BorderSide(color: C.surf3),
-                    minimumSize: const Size(0, 52),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: const Text('← Back'),
+                ]),
+              ),
+            ),
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Row(children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: widget.onBack,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: C.textPrimary,
+                          side: const BorderSide(color: C.surf3),
+                          minimumSize: const Size(0, 52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: const Text('← Back'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: _canContinue ? () { _save(); widget.onNext(); } : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: C.teal500,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          minimumSize: const Size(0, 52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: Text('Next: Review →',
+                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ]),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  onPressed: _canContinue ? () { _save(); widget.onNext(); } : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: C.teal500,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    minimumSize: const Size(0, 52),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: Text('Next: Review →',
-                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700)),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 24),
+            ),
           ],
         ),
       ),

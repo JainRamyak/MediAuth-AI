@@ -6,10 +6,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/colors.dart';
 import '../widgets/shared_widgets.dart';
 import '../api/api_service.dart';
+import '../auth/auth_service.dart';
 
 TextStyle _inter(double size, FontWeight w, Color color, {double ls = 0, double h = 1}) =>
     GoogleFonts.inter(fontSize: size, fontWeight: w, color: color, letterSpacing: ls, height: h);
@@ -155,15 +155,14 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   String get _userName {
-    final meta = Supabase.instance.client.auth.currentUser?.userMetadata;
-    final name = (meta?['full_name'] ?? meta?['name'] ?? '').toString().trim();
+    final name = (AuthService.instance.currentUser?.fullName ?? '').trim();
     if (name.isNotEmpty) return name.split(' ').first;
-    return Supabase.instance.client.auth.currentUser?.email?.split('@').first ?? 'there';
+    final email = AuthService.instance.currentUser?.email ?? '';
+    return email.isNotEmpty ? email.split('@').first : 'there';
   }
 
   String get _initials {
-    final meta = Supabase.instance.client.auth.currentUser?.userMetadata;
-    final name = (meta?['full_name'] ?? meta?['name'] ?? '').toString().trim();
+    final name = (AuthService.instance.currentUser?.fullName ?? '').trim();
     final parts = name.split(' ').where((p) => p.isNotEmpty).toList();
     if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     if (parts.isNotEmpty) return parts[0][0].toUpperCase();
@@ -205,23 +204,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
 
             // ── OFFLINE BANNER ────────────────────────────────────────────
-            if (_fromCache)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: InfoBanner(
-                    message: _backendReachable
-                        ? 'Showing local history — history sync unavailable on this server.'
-                        : 'Server unreachable — showing cached results. Pull to retry.',
-                    icon: _backendReachable
-                        ? Icons.cloud_sync_rounded
-                        : Icons.wifi_off_rounded,
-                    bgColor: C.amber50,
-                    accentColor: C.amber500,
-                    textColor: C.amber700,
-                  ),
-                ),
-              ),
+
 
             // ── STATS 2×2 GRID + FILTERS ──────────────────────────────────
             SliverToBoxAdapter(
@@ -314,7 +297,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               )
             else
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
+                padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(context).padding.bottom + 24),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (ctx, i) {
@@ -409,26 +392,49 @@ class _HeroAppBar extends StatelessWidget {
 
           const SizedBox(height: 14),
 
-          // ── Compact "New Request" button inside the header ────────────
-          // Much smaller than the old full-width FAB — sits neatly in the bar
-          GestureDetector(
-            onTap: onNewRequest,
-            child: Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: C.teal500,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.15), width: 0.5),
+          // ── Bottom Row: Security Badge & Action ────────────
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: C.teal800.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: C.teal500.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.verified_user_rounded, size: 12, color: C.teal400),
+                    const SizedBox(width: 4),
+                    Text('HIPAA Compliant', style: _inter(11, FontWeight.w600, C.teal100)),
+                  ],
+                ),
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.add_rounded, size: 16, color: Colors.white),
-                const SizedBox(width: 6),
-                Text('New Request',
-                  style: _inter(13, FontWeight.w700, Colors.white)),
-              ]),
-            ),
+
+              // Much smaller than the old full-width FAB — sits neatly in the bar
+              GestureDetector(
+                onTap: onNewRequest,
+                child: Container(
+                  height: 38,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: C.teal500,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.15), width: 0.5),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+                    const SizedBox(width: 6),
+                    Text('New Request',
+                      style: _inter(13, FontWeight.w700, Colors.white)),
+                  ]),
+                ),
+              ),
+            ],
           ),
         ],
       ),

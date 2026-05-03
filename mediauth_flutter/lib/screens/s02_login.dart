@@ -57,10 +57,8 @@ class _LoginScreenState extends State<LoginScreen>
 
     if (!mounted) return;
     if (!result.success) {
-      if (result.errorMessage == 'EMAIL_NOT_FOUND') {
-        setState(() { _loading = false; _error = null; });
-        showMediToast(context, 'Account not found. Please sign up first.', kind: ToastKind.warning);
-        widget.onSignUp();
+      if (result.errorMessage?.contains('Incorrect email or password') == true) {
+        setState(() { _loading = false; _error = 'Incorrect email or password. Are you sure you have an account?'; });
       } else {
         setState(() { _loading = false; _error = result.errorMessage; });
       }
@@ -69,21 +67,6 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() { _loading = false; _showSuccess = true; });
     await Future.delayed(const Duration(milliseconds: 700));
     if (mounted) widget.onLogin();
-  }
-
-  // ── Google Sign-In (browser OAuth) ─────────────────────────────────────────
-  Future<void> _googleSignIn() async {
-    setState(() { _loading = true; _error = null; });
-    final result = await AuthService.instance.signInWithGoogle();
-    if (!mounted) return;
-    if (!result.success) {
-      setState(() { _loading = false; _error = result.errorMessage; });
-      return;
-    }
-    // Browser was launched successfully — user will be redirected back via
-    // the deep link, which triggers onAuthStateChange → _go(_Screen.shell).
-    // Just reset loading; don't call onLogin() yet.
-    setState(() { _loading = false; });
   }
 
 
@@ -349,47 +332,6 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
 
                       const SizedBox(height: 20),
-                      // Divider row
-                      Row(children: [
-                        Expanded(child: Container(height: 0.5, color: C.surf3)),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Text('or',
-                            style: GoogleFonts.inter(
-                              fontSize: 12, color: C.textTertiary)),
-                        ),
-                        Expanded(child: Container(height: 0.5, color: C.surf3)),
-                      ]),
-                      const SizedBox(height: 20),
-
-                      // Google Sign-In button
-                      GestureDetector(
-                        onTap: _loading ? null : _googleSignIn,
-                        child: Container(
-                          height: 52,
-                          decoration: BoxDecoration(
-                            color: C.surf1,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: C.surf3),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text('G',
-                                style: GoogleFonts.inter(
-                                  fontSize: 18, fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF4285F4))),
-                              const SizedBox(width: 10),
-                              Text('Continue with Google',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14, fontWeight: FontWeight.w600,
-                                  color: C.textPrimary)),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
 
                       // New user
                       SizedBox(

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:io' show Platform;
 import '../screens/s06b_prompt_customization.dart';
 
@@ -12,9 +12,8 @@ import '../screens/s06b_prompt_customization.dart';
 // Base URL is read from .env (API_BASE_URL) with a platform-aware fallback.
 //
 // Authentication:
-//   Every request includes an Authorization: Bearer <supabase_jwt> header.
-//   The current backend does not validate tokens, but the header is included
-//   for forward-compatibility when auth middleware is added.
+//   Every request includes an Authorization: Bearer <token> header, read securely
+//   from FlutterSecureStorage.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ApiException implements Exception {
@@ -29,6 +28,8 @@ class ApiException implements Exception {
 }
 
 class ApiService {
+  static const _storage = FlutterSecureStorage();
+
   // ── Base URL ────────────────────────────────────────────────────────────────
 
   static String get baseUrl {
@@ -49,16 +50,16 @@ class ApiService {
 
   // ── Auth header ─────────────────────────────────────────────────────────────
 
-  /// Returns headers with Content-Type and, if available, the Supabase JWT.
-  static Map<String, String> _headers() {
+  /// Returns headers with Content-Type and, if available, the Secure Storage JWT.
+  static Future<Map<String, String>> _headers() async {
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
 
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
-      headers['Authorization'] = 'Bearer ${session.accessToken}';
+    final token = await _storage.read(key: 'access_token');
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
     }
 
     return headers;
@@ -69,8 +70,9 @@ class ApiService {
   static Future<Map<String, dynamic>> healthCheck() async {
     final url = Uri.parse('${baseUrl.replaceAll('/api/v1', '')}/health');
     try {
+      final headers = await _headers();
       final res = await http
-          .get(url, headers: _headers())
+          .get(url, headers: headers)
           .timeout(const Duration(seconds: 10));
       if (res.statusCode != 200) {
         throw ApiException('Health check failed', statusCode: res.statusCode);
@@ -91,10 +93,11 @@ class ApiService {
       String patientText, String requestedTreatment) async {
     final url = Uri.parse('$baseUrl/authorize');
     try {
+      final headers = await _headers();
       final res = await http
           .post(
             url,
-            headers: _headers(),
+            headers: headers,
             body: jsonEncode({
               'patient_text': patientText,
               'requested_treatment': requestedTreatment,
@@ -126,8 +129,9 @@ class ApiService {
   static Future<List<String>> fetchPromptsList() async {
     final url = Uri.parse('$baseUrl/prompts/');
     try {
+      final headers = await _headers();
       final res = await http
-          .get(url, headers: _headers())
+          .get(url, headers: headers)
           .timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) {
         throw ApiException('Failed to list prompts', statusCode: res.statusCode);
@@ -145,8 +149,9 @@ class ApiService {
   static Future<Map<String, String>> fetchPrompt(String agentKey) async {
     final url = Uri.parse('$baseUrl/prompts/$agentKey');
     try {
+      final headers = await _headers();
       final res = await http
-          .get(url, headers: _headers())
+          .get(url, headers: headers)
           .timeout(const Duration(seconds: 15));
       if (res.statusCode == 404) {
         throw ApiException("Agent '$agentKey' not found", statusCode: 404);
@@ -173,10 +178,11 @@ class ApiService {
       String agentKey, String system, String userTemplate) async {
     final url = Uri.parse('$baseUrl/prompts/$agentKey');
     try {
+      final headers = await _headers();
       final res = await http
           .put(
             url,
-            headers: _headers(),
+            headers: headers,
             body: jsonEncode({
               'system': system,
               'user_template': userTemplate,
@@ -210,8 +216,9 @@ class ApiService {
   static Future<List<Map<String, dynamic>>> fetchHistory({int limit = 50}) async {
     final url = Uri.parse('$baseUrl/authorize?limit=$limit');
     try {
+      final headers = await _headers();
       final res = await http
-          .get(url, headers: _headers())
+          .get(url, headers: headers)
           .timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) {
         throw ApiException('Failed to load history', statusCode: res.statusCode);
@@ -229,8 +236,9 @@ class ApiService {
   static Future<Map<String, dynamic>> fetchAuthorizationById(String id) async {
     final url = Uri.parse('$baseUrl/authorize/$id');
     try {
+      final headers = await _headers();
       final res = await http
-          .get(url, headers: _headers())
+          .get(url, headers: headers)
           .timeout(const Duration(seconds: 15));
       if (res.statusCode == 404) {
         throw ApiException('Authorization not found', statusCode: 404);
@@ -245,3 +253,4 @@ class ApiService {
     }
   }
 }
+

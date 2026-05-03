@@ -29,6 +29,7 @@ class ReviewSubmitScreen extends StatefulWidget {
 class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
   late final TextEditingController _treatment;
   late final TextEditingController _reason;
+  bool _consentGiven = false;
 
   @override
   void initState() {
@@ -45,7 +46,7 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
     widget.treatment.whyNeeded          = _reason.text.trim();
   }
 
-  bool get _canSubmit => _treatment.text.trim().isNotEmpty;
+  bool get _canSubmit => _treatment.text.trim().isNotEmpty && _consentGiven;
 
   String _dobStr() {
     final d = widget.patient.dateOfBirth;
@@ -68,13 +69,16 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
           style: GoogleFonts.inter(
             fontSize: 16, fontWeight: FontWeight.w700, color: C.textPrimary)),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            StepHeader(current: 3, total: 3, title: 'Treatment Request & Review'),
-            const SizedBox(height: 20),
+      body: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  StepHeader(current: 3, total: 3, title: 'Treatment Request & Review'),
+                  const SizedBox(height: 20),
 
             // Treatment fields
             SectionLabel('Treatment Request', Icons.medical_services_outlined),
@@ -114,7 +118,10 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _ReviewRow('Patient', '${widget.patient.fullName}  ·  DOB ${_dobStr()}'),
+                  if (widget.patient.abhaId.isNotEmpty)
+                    _ReviewRow('ABHA ID', widget.patient.abhaId),
                   _ReviewRow('Insurance', '${widget.patient.insurer}  ·  ${widget.patient.policyNumber}'),
+                  _ReviewRow('Admission', widget.patient.admissionType),
                   _ReviewRow('Diagnoses', widget.patient.diagnoses.join(', ')),
                   _ReviewRow('Medications', widget.patient.medications.join(', ')),
                   if (widget.patient.doctorName.isNotEmpty)
@@ -137,34 +144,72 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
               textAlign: TextAlign.center),
             const SizedBox(height: 24),
 
-            // Actions
-            PrimaryButton(
-              label: 'Submit for Authorization',
-              icon: Icons.send_rounded,
-              onPressed: _canSubmit ? () { _save(); widget.onSubmit(); } : null,
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.settings_outlined, size: 18),
-              label: const Text('View & Customize AI Prompts (Optional)'),
-              onPressed: () { _save(); widget.onCustomize(); },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: C.teal600,
-                side: const BorderSide(color: C.teal500, width: 0.8),
-                minimumSize: const Size(double.infinity, 52),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+                ]),
               ),
             ),
-            const SizedBox(height: 8),
-            Center(
-              child: Text(
-                "Not sure? Just tap Submit — the AI handles everything.",
-                style: GoogleFonts.inter(fontSize: 12, color: C.textTertiary),
-                textAlign: TextAlign.center,
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // HIPAA Consent
+                      Container(
+                        decoration: BoxDecoration(
+                          color: C.teal50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: C.teal400.withValues(alpha: 0.5)),
+                        ),
+                        child: CheckboxListTile(
+                          value: _consentGiven,
+                          onChanged: (val) => setState(() => _consentGiven = val ?? false),
+                          activeColor: C.teal600,
+                          checkColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: Text(
+                            'I consent to the processing of this medical data by MediAuth AI in accordance with HIPAA guidelines.',
+                            style: GoogleFonts.inter(fontSize: 12, color: C.teal800, fontWeight: FontWeight.w500, height: 1.4),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Actions
+                      PrimaryButton(
+                        label: 'Submit for Authorization',
+                        icon: Icons.send_rounded,
+                        onPressed: _canSubmit ? () { _save(); widget.onSubmit(); } : null,
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.settings_outlined, size: 18),
+                        label: const Text('View & Customize AI Prompts (Optional)'),
+                        onPressed: () { _save(); widget.onCustomize(); },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: C.teal600,
+                          side: const BorderSide(color: C.teal500, width: 0.8),
+                          minimumSize: const Size(double.infinity, 52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Center(
+                        child: Text(
+                          "Not sure? Just tap Submit — the AI handles everything.",
+                          style: GoogleFonts.inter(fontSize: 12, color: C.textTertiary),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 32),
           ],
         ),
       ),

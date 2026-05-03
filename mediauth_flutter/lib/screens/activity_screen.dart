@@ -154,22 +154,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
         color: C.teal500,
         child: CustomScrollView(
           slivers: [
-            // ── Cache banner ───────────────────────────────────────────────
-            if (_fromCache)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: InfoBanner(
-                    message: _backendReachable
-                        ? 'Showing local history — history API not available on this deployment.'
-                        : 'Backend unreachable — showing cached results. Pull to refresh.',
-                    icon: _backendReachable
-                        ? Icons.cloud_off_rounded
-                        : Icons.wifi_off_rounded,
-                    bgColor: C.amber50, accentColor: C.amber500, textColor: C.amber700,
-                  ),
-                ),
-              ),
+
 
             // ── Filter chips ───────────────────────────────────────────────
             SliverToBoxAdapter(
@@ -222,7 +207,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 }, childCount: filtered.length),
               ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            SliverToBoxAdapter(
+              child: SizedBox(height: MediaQuery.of(context).padding.bottom + 32),
+            ),
           ],
         ),
       ),

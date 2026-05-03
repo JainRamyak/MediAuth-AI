@@ -7,6 +7,7 @@ import '../widgets/shared_widgets.dart';
 
 class PatientFormData {
   String fullName = '';
+  String abhaId = '';
   DateTime? dateOfBirth;
   String insurer = '';
   String policyNumber = '';
@@ -16,6 +17,7 @@ class PatientFormData {
   String allergies = '';
   String medicalHistory = '';
   String doctorName = '';
+  String admissionType = 'Planned';
 }
 
 class TreatmentFormData {
@@ -44,6 +46,7 @@ class PatientInfoScreen extends StatefulWidget {
 class _PatientInfoScreenState extends State<PatientInfoScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
+  late final TextEditingController _abha;
   late final TextEditingController _policy;
   late final TextEditingController _member;
 
@@ -55,18 +58,20 @@ class _PatientInfoScreenState extends State<PatientInfoScreen> {
   void initState() {
     super.initState();
     _name   = TextEditingController(text: widget.data.fullName);
+    _abha   = TextEditingController(text: widget.data.abhaId);
     _policy = TextEditingController(text: widget.data.policyNumber);
     _member = TextEditingController(text: widget.data.memberId);
   }
 
   @override
   void dispose() {
-    _name.dispose(); _policy.dispose(); _member.dispose();
+    _name.dispose(); _abha.dispose(); _policy.dispose(); _member.dispose();
     super.dispose();
   }
 
   void _save() {
     widget.data.fullName = _name.text.trim();
+    widget.data.abhaId = _abha.text.trim();
     widget.data.policyNumber = _policy.text.trim();
     widget.data.memberId = _member.text.trim();
   }
@@ -185,14 +190,17 @@ class _PatientInfoScreenState extends State<PatientInfoScreen> {
           style: GoogleFonts.inter(
             fontSize: 16, fontWeight: FontWeight.w700, color: C.textPrimary)),
       ),
-      body: Form(
-        key: _formKey,
-        onChanged: () => setState(() {}),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          onChanged: () => setState(() {}),
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
               StepHeader(current: 1, total: 3, title: 'Personal & Insurance Info'),
               const SizedBox(height: 20),
 
@@ -208,6 +216,17 @@ class _PatientInfoScreenState extends State<PatientInfoScreen> {
                   hintText: 'e.g. John Doe',
                   prefixIcon: Icon(Icons.person_outline_rounded, size: 18)),
                 validator: _validateName,
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+
+              TextFormField(
+                controller: _abha,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'ABHA ID / Ayushman Bharat No.',
+                  hintText: 'e.g. 14-digit ABHA Number',
+                  prefixIcon: Icon(Icons.credit_card_outlined, size: 18)),
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 12),
@@ -312,19 +331,28 @@ class _PatientInfoScreenState extends State<PatientInfoScreen> {
                   ),
                 ]),
               ),
-              const SizedBox(height: 32),
-
-              PrimaryButton(
-                label: 'Next: Medical Information →',
-                icon: Icons.arrow_forward_rounded,
-                onPressed: _canContinue ? () {
-                  if (_formKey.currentState!.validate()) {
-                    _save();
-                    widget.onNext();
-                  }
-                } : null,
+                  ]),
+                ),
               ),
-              const SizedBox(height: 24),
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: PrimaryButton(
+                      label: 'Next: Medical Information →',
+                      icon: Icons.arrow_forward_rounded,
+                      onPressed: _canContinue ? () {
+                        if (_formKey.currentState!.validate()) {
+                          _save();
+                          widget.onNext();
+                        }
+                      } : null,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

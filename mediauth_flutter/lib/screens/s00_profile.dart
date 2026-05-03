@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/colors.dart';
 import '../widgets/shared_widgets.dart';
+import '../auth/auth_service.dart';
 
 // ── Profile Screen ────────────────────────────────────────────────────────────
 
@@ -10,13 +10,9 @@ class ProfileScreen extends StatelessWidget {
   final VoidCallback onLogout;
   const ProfileScreen({super.key, required this.onLogout});
 
-  String get _name {
-    final m = Supabase.instance.client.auth.currentUser?.userMetadata ?? {};
-    return (m['full_name'] ?? m['name'] ?? '').toString();
-  }
+  String get _name => (AuthService.instance.currentUser?.fullName ?? '').toString();
 
-  String get _email =>
-      Supabase.instance.client.auth.currentUser?.email ?? '';
+  String get _email => AuthService.instance.currentUser?.email ?? '';
 
   String get _initials {
     final parts = _name.trim().split(' ').where((p) => p.isNotEmpty).toList();
@@ -119,7 +115,7 @@ class ProfileScreen extends StatelessWidget {
             // Sign out
             OutlinedButton.icon(
               onPressed: () async {
-                await Supabase.instance.client.auth.signOut();
+                await AuthService.instance.signOut();
                 onLogout();
               },
               icon: const Icon(Icons.logout_rounded, size: 18, color: C.red500),
@@ -176,96 +172,3 @@ class _SettingsTile extends StatelessWidget {
   }
 }
 
-// ── Reset Password Screen ─────────────────────────────────────────────────────
-
-class ResetPasswordScreen extends StatefulWidget {
-  final VoidCallback onDone;
-  const ResetPasswordScreen({super.key, required this.onDone});
-
-  @override
-  State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
-}
-
-class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
-  final _pwdCtrl   = TextEditingController();
-  final _confirmCtrl = TextEditingController();
-  bool _loading = false;
-  bool _obscure = true;
-
-  bool get _valid =>
-      _pwdCtrl.text.length >= 8 &&
-      _pwdCtrl.text == _confirmCtrl.text;
-
-  Future<void> _update() async {
-    setState(() => _loading = true);
-    try {
-      await Supabase.instance.client.auth.updateUser(
-        UserAttributes(password: _pwdCtrl.text.trim()));
-      if (mounted) showMediToast(context, 'Password updated');
-      widget.onDone();
-    } catch (e) {
-      if (mounted) {
-        showMediToast(context, 'Failed: ${e.toString()}', kind: ToastKind.error);
-        setState(() => _loading = false);
-      }
-    }
-  }
-
-  @override
-  void dispose() { _pwdCtrl.dispose(); _confirmCtrl.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: C.surf1,
-      appBar: AppBar(
-        backgroundColor: C.surf0,
-        surfaceTintColor: Colors.transparent,
-        title: Text('Set New Password',
-          style: GoogleFonts.inter(
-            fontSize: 16, fontWeight: FontWeight.w700, color: C.textPrimary)),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Choose a new password for your MediAuth account.',
-              style: GoogleFonts.inter(fontSize: 14, color: C.textSecondary, height: 1.5)),
-            const SizedBox(height: 24),
-            TextFormField(
-              controller: _pwdCtrl,
-              obscureText: _obscure,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                labelText: 'New Password',
-                prefixIcon: const Icon(Icons.lock_outline_rounded, size: 18),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                    size: 18, color: C.textTertiary),
-                  onPressed: () => setState(() => _obscure = !_obscure),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _confirmCtrl,
-              obscureText: true,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                labelText: 'Confirm Password',
-                prefixIcon: Icon(Icons.lock_outline_rounded, size: 18)),
-            ),
-            const SizedBox(height: 32),
-            PrimaryButton(
-              label: 'Update Password',
-              loading: _loading,
-              onPressed: _valid ? _update : null,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

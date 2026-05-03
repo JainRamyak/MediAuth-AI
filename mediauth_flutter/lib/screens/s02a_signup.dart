@@ -37,21 +37,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _obscure = true;
   bool _loading = false;
 
-  bool get _isOAuthCompletion => AuthService.instance.currentUser != null;
-
   @override
   void initState() {
     super.initState();
-    if (_isOAuthCompletion) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        showMediToast(context, 'You are a new user. Please complete your registration.', kind: ToastKind.warning);
-      });
-      final md = AuthService.instance.currentUser?.userMetadata;
-      if (md != null) {
-        final name = md['full_name'] ?? md['name'];
-        if (name != null) _nameCtrl.text = name.toString();
-      }
-    }
   }
 
   void _pickDate() async {
@@ -71,32 +59,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (dt != null) setState(() => _dob = dt);
   }
 
-  Future<void> _completeOAuthRegistration() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_dob == null) {
-      showMediToast(context, 'Please select your Date of Birth', kind: ToastKind.error);
-      return;
-    }
-    setState(() => _loading = true);
-
-    final result = await AuthService.instance.updateUserMetadata({
-      'full_name':        _nameCtrl.text.trim(),
-      'date_of_birth':   _dob!.toIso8601String(),
-      'insurer':         _insurer ?? '',
-      'policy_number':   _policyCtrl.text.trim(),
-      'profile_completed': true,
-    });
-
-    if (!mounted) return;
-    setState(() => _loading = false);
-
-    if (!result.success) {
-      showMediToast(context, result.errorMessage ?? 'Failed to update profile.', kind: ToastKind.error);
-      return;
-    }
-    widget.onSignUpSuccess();
-  }
-
   Future<void> _signUp() async {
     if (!_formKey.currentState!.validate()) return;
     if (_dob == null) {
@@ -109,12 +71,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final result = await AuthService.instance.signUpWithEmail(
       email: _emailCtrl.text.trim(),
       password: _passCtrl.text,
-      metadata: {
-        'full_name':        _nameCtrl.text.trim(),
-        'date_of_birth':   _dob!.toIso8601String(),
-        'insurer':         _insurer ?? '',
-        'policy_number':   _policyCtrl.text.trim(),
-      },
+      fullName: _nameCtrl.text.trim(),
     );
 
     if (!mounted) return;
@@ -126,32 +83,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
-    // Supabase may require email confirmation before a session is granted.
-    if (result.user?.emailConfirmedAt != null ||
-        AuthService.instance.currentSession != null) {
-      widget.onSignUpSuccess();
-    } else {
-      showMediToast(
-        context,
-        'Account created! Check your email to verify your address.',
-        kind: ToastKind.success,
-        duration: const Duration(seconds: 5),
-      );
-      await Future.delayed(const Duration(seconds: 2));
-      if (mounted) widget.onSignIn();
-    }
-  }
-
-  Future<void> _googleSignUp() async {
-    setState(() => _loading = true);
-    final result = await AuthService.instance.signInWithGoogle();
-    if (!mounted) return;
-    setState(() => _loading = false);
-    if (!result.success) {
-      showMediToast(context, result.errorMessage ?? 'Google sign-up failed.',
-        kind: ToastKind.error);
-      return;
-    }
     widget.onSignUpSuccess();
   }
 
@@ -332,7 +263,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      if (!_isOAuthCompletion) ...[
                         // ── Account ───────────────────────────────────────────
                         SectionLabel('Secure Your Account',
                           Icons.lock_person_rounded),
@@ -373,62 +303,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           validator: (v) => v!.isEmpty ? 'Required' : null,
                         ),
                         const SizedBox(height: 32),
-                      ],
 
                       PrimaryButton(
-                        label: _isOAuthCompletion ? 'Complete Sign Up' : 'Create Account',
-                        onPressed: _loading ? null : (_isOAuthCompletion ? _completeOAuthRegistration : _signUp),
+                        label: 'Create Account',
+                        onPressed: _loading ? null : _signUp,
                         loading: _loading,
                         icon: Icons.check_circle_outline_rounded,
                       ),
                       const SizedBox(height: 12),
 
-                      if (!_isOAuthCompletion) ...[
-                        // Google Sign-Up
-                        GestureDetector(
-                          onTap: _loading ? null : _googleSignUp,
-                          child: Container(
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: C.surf1,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: C.surf3),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text('G',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF4285F4))),
-                                const SizedBox(width: 10),
-                                Text('Sign up with Google',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14, fontWeight: FontWeight.w600,
-                                    color: C.textPrimary)),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-
                       SizedBox(
                         width: double.infinity, height: 52,
                         child: OutlinedButton(
-                          onPressed: () async {
-                            if (_isOAuthCompletion) {
-                              await AuthService.instance.signOut();
-                            }
-                            widget.onSignIn();
-                          },
+                          onPressed: widget.onSignIn,
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: C.surf3, width: 1),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14)),
                           ),
-                          child: Text(_isOAuthCompletion ? 'Cancel & Sign Out' : 'Already have an account? Sign in',
+                          child: Text('Already have an account? Sign in',
                             style: GoogleFonts.inter(
                               fontSize: 14, fontWeight: FontWeight.w600,
                               color: C.textPrimary)),

@@ -77,6 +77,8 @@ class _AgentPipelineScreenState extends State<AgentPipelineScreen> {
         : 'Unknown';
     return '''Patient: ${p.fullName}
 DOB: $dobStr
+ABHA ID: ${p.abhaId.isEmpty ? 'Not provided' : p.abhaId}
+Admission Type: ${p.admissionType}
 Insurance: ${p.insurer}
 Policy: ${p.policyNumber}
 Member ID: ${p.memberId}
