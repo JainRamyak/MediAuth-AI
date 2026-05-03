@@ -38,12 +38,12 @@ class StatusPill extends StatelessWidget {
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      height: 28,
+      height: 26,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: borderColor, width: 0.75),
+        border: Border.all(color: borderColor, width: 0.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -54,7 +54,7 @@ class StatusPill extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Text(label,
-            style: _inter(11.5, FontWeight.w600, textColor, spacing: 0.1)),
+            style: _inter(11, FontWeight.w600, textColor, spacing: 0.1)),
         ],
       ),
     );
@@ -294,7 +294,7 @@ class _Chip extends StatelessWidget {
 
 // ─── PRIMARY BUTTON ──────────────────────────────────────
 
-class PrimaryButton extends StatelessWidget {
+class PrimaryButton extends StatefulWidget {
   final String label;
   final VoidCallback? onPressed;
   final bool loading;
@@ -306,36 +306,67 @@ class PrimaryButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 52, width: double.infinity,
-    child: ElevatedButton(
-      onPressed: loading ? null : onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: C.teal500,
-        disabledBackgroundColor: C.teal500.withValues(alpha: 0.55),
-        elevation: 0,
-        shadowColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-      ),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child: loading
-            ? const SizedBox(
-                key: ValueKey('loader'),
-                width: 20, height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
-              )
-            : Row(
-                key: const ValueKey('label'),
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: 17, color: Colors.white),
-                    const SizedBox(width: 8),
-                  ],
-                  Text(label, style: _inter(15, FontWeight.w700, Colors.white)),
-                ],
-              ),
+  State<PrimaryButton> createState() => _PrimaryButtonState();
+}
+
+class _PrimaryButtonState extends State<PrimaryButton> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+    _scale = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  void _down(_) { if (widget.onPressed != null && !widget.loading) _ctrl.forward(); }
+  void _up(_)   { if (widget.onPressed != null && !widget.loading) _ctrl.reverse(); }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTapDown: _down,
+    onTapUp: _up,
+    onTapCancel: () => _up(null),
+    child: ScaleTransition(
+      scale: _scale,
+      child: SizedBox(
+        height: 52, width: double.infinity,
+        child: ElevatedButton(
+          onPressed: widget.loading ? null : widget.onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: C.teal500,
+            disabledBackgroundColor: C.teal500.withValues(alpha: 0.55),
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+          ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: widget.loading
+                ? const SizedBox(
+                    key: ValueKey('loader'),
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                  )
+                : Row(
+                    key: const ValueKey('label'),
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (widget.icon != null) ...[
+                        Icon(widget.icon, size: 17, color: Colors.white),
+                        const SizedBox(width: 8),
+                      ],
+                      Text(widget.label, style: _inter(15, FontWeight.w700, Colors.white)),
+                    ],
+                  ),
+          ),
+        ),
       ),
     ),
   );
@@ -759,6 +790,70 @@ class _PulseRingsState extends State<PulseRings> with SingleTickerProviderStateM
       ),
     );
   }
+}
+
+// ─── GLOBAL ANIMATIONS ──────────────────────────────────────
+
+class PulseOpacity extends StatefulWidget {
+  final Widget child;
+  const PulseOpacity({super.key, required this.child});
+  @override
+  State<PulseOpacity> createState() => _PulseOpacityState();
+}
+class _PulseOpacityState extends State<PulseOpacity> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.3, end: 1.0).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+  }
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _anim, builder: (_, child) => Opacity(opacity: _anim.value, child: child), child: widget.child,
+  );
+}
+
+class SkeletonShimmer extends StatelessWidget {
+  final double width;
+  final double height;
+  final double borderRadius;
+  const SkeletonShimmer({super.key, required this.width, required this.height, this.borderRadius = 8});
+
+  @override
+  Widget build(BuildContext context) => PulseOpacity(
+    child: Container(
+      width: width, height: height,
+      decoration: BoxDecoration(
+        color: C.surf3.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+    ),
+  );
+}
+
+class FloatingAnimation extends StatefulWidget {
+  final Widget child;
+  const FloatingAnimation({super.key, required this.child});
+  @override
+  State<FloatingAnimation> createState() => _FloatingAnimationState();
+}
+class _FloatingAnimationState extends State<FloatingAnimation> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<Offset> _anim;
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 2500))..repeat(reverse: true);
+    _anim = Tween<Offset>(begin: const Offset(0, -0.04), end: const Offset(0, 0.04)).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOutSine));
+  }
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => SlideTransition(position: _anim, child: widget.child);
 }
 
 // ─── CONFETTI ────────────────────────────────────────────

@@ -58,17 +58,7 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: C.surf1,
-      appBar: AppBar(
-        backgroundColor: C.surf0,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: C.textPrimary),
-          onPressed: widget.onBack,
-        ),
-        title: Text('New Authorization',
-          style: GoogleFonts.inter(
-            fontSize: 16, fontWeight: FontWeight.w700, color: C.textPrimary)),
-      ),
+      appBar: IntakeAppBar(title: 'New Authorization', onBack: widget.onBack),
       body: SafeArea(
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),

@@ -24,7 +24,7 @@ import 'screens/activity_screen.dart';
 import 'screens/s12_agent_list.dart';
 import 'screens/s13_prompt_editor.dart';
 
-// ── Agent display name map (shared here so main doesn't need it in s12) ────────
+// ── Agent display name map ────────────────────────────────────────────────────
 
 const _agentDisplayNames = {
   'intake':           'Intake & History Agent',
@@ -41,14 +41,11 @@ const _agentDisplayNames = {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark,
+    statusBarColor:           Colors.transparent,
+    statusBarIconBrightness:  Brightness.light, // white icons over dark header
   ));
   await dotenv.load(fileName: '.env');
-  
-  // Initialize our custom API auth service (reads JWT from secure storage)
   await AuthService.instance.initialize();
-  
   runApp(const MediAuthApp());
 }
 
@@ -73,13 +70,13 @@ enum _Screen {
   login,
   signup,
   resetPassword,
-  shell,          // 3-tab shell
-  newRequest,     // intake form (steps 1-3)
-  promptCustom,   // screen 6B
-  pipeline,       // screen 7
-  approved,       // screen 8
-  denied,         // screen 9
-  agentDetail,    // screen 13 — pushed from agents tab
+  shell,
+  newRequest,
+  promptCustom,
+  pipeline,
+  approved,
+  denied,
+  agentDetail,
 }
 
 // ── Root ──────────────────────────────────────────────────────────────────────
@@ -93,16 +90,13 @@ class _AppRoot extends StatefulWidget {
 class _AppRootState extends State<_AppRoot> {
   _Screen _screen = _Screen.splash;
 
-  // Form state — reset on new request
-  PatientFormData     _patient   = PatientFormData();
-  TreatmentFormData   _treatment = TreatmentFormData();
+  PatientFormData      _patient   = PatientFormData();
+  TreatmentFormData    _treatment = TreatmentFormData();
   PromptSubmitPayload? _payload;
   int _intakeStep = 1;
 
-  // Result from API
   Map<String, dynamic> _apiResult = {};
 
-  // Agent detail
   String _agentKey         = '';
   String _agentDisplayName = '';
 
@@ -116,16 +110,11 @@ class _AppRootState extends State<_AppRoot> {
       switch (data.event) {
         case AuthChangeEvent.initialSession:
         case AuthChangeEvent.signedIn:
-          final user = data.user;
-          // Simple rule: if we have a user, proceed to shell. 
-          // (Removed Supabase metadata checks for simplicity in custom auth)
-          _go(user != null ? _Screen.shell : _Screen.login);
+          _go(data.user != null ? _Screen.shell : _Screen.login);
           break;
-
         case AuthChangeEvent.signedOut:
           _go(_Screen.login);
           break;
-
         default:
           break;
       }
@@ -135,7 +124,6 @@ class _AppRootState extends State<_AppRoot> {
   @override
   Widget build(BuildContext context) {
     final Widget child = switch (_screen) {
-      // ── Auth ───────────────────────────────────────────────────────────
       _Screen.splash => SplashScreen(
         onDone: () {
           final user = AuthService.instance.currentUser;
@@ -153,14 +141,14 @@ class _AppRootState extends State<_AppRoot> {
         onSignIn:        () => _go(_Screen.login),
       ),
 
-      // Dummy reset password for now
-      _Screen.resetPassword => const Scaffold(body: Center(child: Text("Reset not implemented"))),
+      _Screen.resetPassword => const Scaffold(
+        body: Center(child: Text('Reset not implemented')),
+      ),
 
-      // ── Shell ──────────────────────────────────────────────────────────
       _Screen.shell => _ShellScreen(
         onNewRequest:  _startNewRequest,
         onRequestTap:  _openResult,
-        onProfileTap:  () {}, // handled inside shell via 4th tab
+        onProfileTap:  () {},
         onAgentDetail: (key) {
           _agentKey         = key;
           _agentDisplayName = _agentDisplayNames[key] ?? key;
@@ -168,7 +156,6 @@ class _AppRootState extends State<_AppRoot> {
         },
       ),
 
-      // ── Intake flow ────────────────────────────────────────────────────
       _Screen.newRequest => _buildIntake(),
 
       _Screen.promptCustom => PromptCustomizationScreen(
@@ -179,14 +166,13 @@ class _AppRootState extends State<_AppRoot> {
       ),
 
       _Screen.pipeline => AgentPipelineScreen(
-        patient:   _patient,
-        treatment: _treatment,
-        payload:   _payload,
+        patient:    _patient,
+        treatment:  _treatment,
+        payload:    _payload,
         onApproved: (r) { _apiResult = r; _go(_Screen.approved); },
         onDenied:   (r) { _apiResult = r; _go(_Screen.denied);   },
       ),
 
-      // ── Results ────────────────────────────────────────────────────────
       _Screen.approved => ApprovedScreen(
         result:       _apiResult,
         onNewRequest: _startNewRequest,
@@ -200,7 +186,6 @@ class _AppRootState extends State<_AppRoot> {
         onApproved:   (r) { _apiResult = r; _go(_Screen.approved); },
       ),
 
-      // ── Agent Detail ───────────────────────────────────────────────────
       _Screen.agentDetail => PromptEditorScreen(
         agentKey:    _agentKey,
         displayName: _agentDisplayName,
@@ -208,49 +193,46 @@ class _AppRootState extends State<_AppRoot> {
       ),
     };
 
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      transitionBuilder: (w, anim) {
-        return FadeTransition(
-          opacity: anim,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0.05, 0),
-              end: Offset.zero,
-            ).animate(anim),
-            child: w,
+    return Scaffold(
+      backgroundColor: C.surf1,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 280),
+            switchInCurve:  Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (w, anim) => FadeTransition(
+              opacity: anim,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.04, 0),
+                  end:   Offset.zero,
+                ).animate(anim),
+                child: w,
+              ),
+            ),
+            child: KeyedSubtree(key: ValueKey(_screen), child: child),
           ),
-        );
-      },
-      child: KeyedSubtree(
-        key: ValueKey(_screen),
-        child: child,
+        ),
       ),
     );
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  void _startNewRequest() {
-    setState(() {
-      _patient    = PatientFormData();
-      _treatment  = TreatmentFormData();
-      _payload    = null;
-      _intakeStep = 1;
-      _screen     = _Screen.newRequest;
-    });
-  }
+  void _startNewRequest() => setState(() {
+    _patient    = PatientFormData();
+    _treatment  = TreatmentFormData();
+    _payload    = null;
+    _intakeStep = 1;
+    _screen     = _Screen.newRequest;
+  });
 
   void _openResult(Map<String, dynamic> raw) {
     _apiResult = raw;
     final status = (raw['workflow_status'] ?? '').toString().toLowerCase();
-    if (status.contains('approved')) {
-      _go(_Screen.approved);
-    } else {
-      _go(_Screen.denied);
-    }
+    _go(status.contains('approved') ? _Screen.approved : _Screen.denied);
   }
 
   Widget _buildIntake() => switch (_intakeStep) {
@@ -265,10 +247,10 @@ class _AppRootState extends State<_AppRoot> {
       onNext: () => setState(() => _intakeStep = 3),
     ),
     _ => ReviewSubmitScreen(
-      patient:    _patient,
-      treatment:  _treatment,
-      onBack:     () => setState(() => _intakeStep = 2),
-      onSubmit:   () => _go(_Screen.pipeline),
+      patient:     _patient,
+      treatment:   _treatment,
+      onBack:      () => setState(() => _intakeStep = 2),
+      onSubmit:    () => _go(_Screen.pipeline),
       onCustomize: () => _go(_Screen.promptCustom),
     ),
   };
@@ -278,7 +260,7 @@ class _AppRootState extends State<_AppRoot> {
 
 class _ShellScreen extends StatefulWidget {
   final VoidCallback onNewRequest;
-  final void Function(Map<String, dynamic> result) onRequestTap;
+  final void Function(Map<String, dynamic>) onRequestTap;
   final VoidCallback onProfileTap;
   final void Function(String agentKey) onAgentDetail;
 
@@ -296,8 +278,17 @@ class _ShellScreen extends StatefulWidget {
 class _ShellScreenState extends State<_ShellScreen> {
   int _tab = 0;
 
+  static const _items = [
+    _NavMeta(label: 'Home',    icon: Icons.home_outlined,          activeIcon: Icons.home_rounded),
+    _NavMeta(label: 'History', icon: Icons.history_outlined,       activeIcon: Icons.history_rounded),
+    _NavMeta(label: 'Agents',  icon: Icons.smart_toy_outlined,     activeIcon: Icons.smart_toy_rounded),
+    _NavMeta(label: 'Profile', icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+
     final tabs = [
       DashboardScreen(
         onNewRequest: widget.onNewRequest,
@@ -306,126 +297,133 @@ class _ShellScreenState extends State<_ShellScreen> {
       ),
       ActivityScreen(onRequestTap: widget.onRequestTap),
       AgentListScreen(onAgentTap: widget.onAgentDetail),
-      ProfileScreen(onLogout: () {
-        AuthService.instance.signOut();
-      }),
+      ProfileScreen(onLogout: () => AuthService.instance.signOut()),
     ];
 
     return Scaffold(
-      extendBody: true, // Allow content to flow under the floating nav
+      extendBody: true,
       body: IndexedStack(index: _tab, children: tabs),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: C.surf0.withOpacity(0.95), // Semi-transparent for modern feel
-              borderRadius: BorderRadius.circular(40),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                )
-              ],
-              border: Border.all(color: C.surf3, width: 0.5),
+      bottomNavigationBar: Container(
+        // Matches dashboard header — no floating pill, no shadow
+        color: C.navy800,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Hairline separator
+            Container(height: 0.5, color: Colors.white.withValues(alpha: 0.07)),
+            Padding(
+              padding: EdgeInsets.fromLTRB(8, 8, 8, 8 + bottomPad),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: List.generate(_items.length, (i) => _NavItem(
+                  meta:      _items[i],
+                  active:    _tab == i,
+                  // Show amber badge on History tab when there are pending items
+                  showBadge: i == 1,
+                  onTap:     () => setState(() => _tab = i),
+                )),
+              ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _NavItem(
-                  icon:       Icons.home_outlined,
-                  activeIcon: Icons.home_rounded,
-                  label: 'Home',
-                  active: _tab == 0,
-                  onTap: () => setState(() => _tab = 0),
-                ),
-                _NavItem(
-                  icon:       Icons.history_outlined,
-                  activeIcon: Icons.history_rounded,
-                  label: 'History',
-                  active: _tab == 1,
-                  onTap: () => setState(() => _tab = 1),
-                ),
-                _NavItem(
-                  icon:       Icons.smart_toy_outlined,
-                  activeIcon: Icons.smart_toy_rounded,
-                  label: 'Agents',
-                  active: _tab == 2,
-                  onTap: () => setState(() => _tab = 2),
-                ),
-                _NavItem(
-                  icon:       Icons.person_outline_rounded,
-                  activeIcon: Icons.person_rounded,
-                  label: 'Profile',
-                  active: _tab == 3,
-                  onTap: () => setState(() => _tab = 3),
-                ),
-              ],
-            ),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
+// ── Nav metadata (immutable data class) ──────────────────────────────────────
+
+@immutable
+class _NavMeta {
+  final String   label;
+  final IconData icon;
+  final IconData activeIcon;
+  const _NavMeta({
+    required this.label,
+    required this.icon,
+    required this.activeIcon,
+  });
+}
+
 // ── Nav item ──────────────────────────────────────────────────────────────────
 
 class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final IconData activeIcon;
-  final String label;
-  final bool active;
+  final _NavMeta     meta;
+  final bool         active;
+  final bool         showBadge;
   final VoidCallback onTap;
 
   const _NavItem({
-    required this.icon,
-    required this.activeIcon,
-    required this.label,
+    required this.meta,
     required this.active,
     required this.onTap,
+    this.showBadge = false,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(
-          horizontal: active ? 18 : 12,
-          vertical: 10,
-        ),
-        decoration: BoxDecoration(
-          color: active ? C.teal50 : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              active ? activeIcon : icon,
-              size: 24,
-              color: active ? C.teal700 : C.textTertiary,
-            ),
-            if (active) ...[
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: C.teal700,
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    behavior: HitTestBehavior.opaque,
+    child: SizedBox(
+      width: 72,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+
+          // ── Icon with optional notification badge ──────────────
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                width: 44, height: 36,
+                decoration: BoxDecoration(
+                  color: active
+                      ? C.teal500.withValues(alpha: 0.15)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  active ? meta.activeIcon : meta.icon,
+                  size: 22,
+                  color: active
+                      ? C.teal400
+                      : Colors.white.withValues(alpha: 0.35),
                 ),
               ),
+              if (showBadge)
+                Positioned(
+                  top: -1, right: -1,
+                  child: Container(
+                    width: 8, height: 8,
+                    decoration: BoxDecoration(
+                      color: C.amber500,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: C.navy800, width: 1.5),
+                    ),
+                  ),
+                ),
             ],
-          ],
-        ),
+          ),
+
+          const SizedBox(height: 4),
+
+
+
+          // ── Active indicator dot ───────────────────────────────
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            width:  active ? 4 : 0,
+            height: active ? 4 : 0,
+            decoration: const BoxDecoration(
+              color:  C.teal500,
+              shape:  BoxShape.circle,
+            ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
 }

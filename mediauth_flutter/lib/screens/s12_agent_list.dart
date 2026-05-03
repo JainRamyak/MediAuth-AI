@@ -143,8 +143,17 @@ class _AgentListScreenState extends State<AgentListScreen> {
 
             // ── Agent cards ───────────────────────────────────────────────
             if (_loading)
-              const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator(color: C.teal500)))
+              SliverList(
+                delegate: SliverChildBuilderDelegate((ctx, i) {
+                  return FadeSlide(
+                    delay: Duration(milliseconds: i * 100),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: const SkeletonShimmer(width: double.infinity, height: 130, borderRadius: 14),
+                    ),
+                  );
+                }, childCount: 5),
+              )
             else
               SliverList(
                 delegate: SliverChildBuilderDelegate((ctx, i) {

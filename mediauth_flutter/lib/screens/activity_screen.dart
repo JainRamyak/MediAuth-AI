@@ -119,32 +119,36 @@ class _ActivityScreenState extends State<ActivityScreen> {
     return Scaffold(
       backgroundColor: C.surf1,
       appBar: AppBar(
-        backgroundColor: C.surf0,
+        backgroundColor: C.navy800,
         surfaceTintColor: Colors.transparent,
+        elevation: 0,
         automaticallyImplyLeading: false,
-        title: Text('📋  History',
-          style: GoogleFonts.inter(
-            fontSize: 18, fontWeight: FontWeight.w700, color: C.textPrimary)),
+        title: Text('Activity History',
+          style: GoogleFonts.outfit(
+            fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(52),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          preferredSize: const Size.fromHeight(56),
+          child: Container(
+            color: C.navy800,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
                 hintText: 'Search by patient, insurer or treatment…',
-                prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                hintStyle: GoogleFonts.inter(fontSize: 13, color: C.textTertiary),
+                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: C.textTertiary),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: C.surf3, width: 0.5)),
+                  borderSide: BorderSide.none),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: C.surf3, width: 0.5)),
-                filled: true, fillColor: C.surf2, isDense: true,
+                  borderSide: BorderSide.none),
+                filled: true, fillColor: Colors.white.withValues(alpha: 0.10),
+                isDense: true,
               ),
-              style: GoogleFonts.inter(fontSize: 13, color: C.textPrimary),
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
             ),
           ),
         ),
@@ -192,8 +196,17 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
             // ── Content ────────────────────────────────────────────────────
             if (_loading)
-              const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator(color: C.teal500)))
+              SliverList(
+                delegate: SliverChildBuilderDelegate((ctx, i) {
+                  return FadeSlide(
+                    delay: Duration(milliseconds: i * 100),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: const SkeletonShimmer(width: double.infinity, height: 110, borderRadius: 14),
+                    ),
+                  );
+                }, childCount: 4),
+              )
             else if (filtered.isEmpty)
               SliverFillRemaining(child: _EmptyHistory())
             else

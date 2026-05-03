@@ -33,19 +33,9 @@ class ApiService {
   // ── Base URL ────────────────────────────────────────────────────────────────
 
   static String get baseUrl {
-    final envUrl = dotenv.env['API_BASE_URL'];
-    if (envUrl != null && envUrl.isNotEmpty) return envUrl;
-
-    // Platform-aware fallback — keeps dev working even without .env
-    bool isAndroid;
-    try {
-      isAndroid = Platform.isAndroid;
-    } catch (_) {
-      isAndroid = false; // Web / Desktop
-    }
-    return isAndroid
-        ? 'http://10.0.2.2:8000/api/v1'
-        : 'http://127.0.0.1:8000/api/v1';
+    // Note: Temporarily hardcoded to guarantee it reaches the correct endpoint
+    // since Flutter's asset bundler sometimes caches the .env file.
+    return 'https://rohitbhardwaj007-mediauth.hf.space/api/v1';
   }
 
   // ── Auth header ─────────────────────────────────────────────────────────────

@@ -242,12 +242,16 @@ Treating Physician: ${p.doctorName.isEmpty ? 'Not specified' : p.doctorName}''';
     return Scaffold(
       backgroundColor: C.surf1,
       appBar: AppBar(
-        backgroundColor: C.surf0,
+        backgroundColor: C.navy800,
         surfaceTintColor: Colors.transparent,
+        elevation: 0,
         automaticallyImplyLeading: false,
         title: Text('Processing Request',
-          style: GoogleFonts.inter(
-            fontSize: 16, fontWeight: FontWeight.w700, color: C.textPrimary)),
+          style: GoogleFonts.outfit(
+            fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white)),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(0.5),
+          child: Container(height: 0.5, color: Colors.white.withValues(alpha: 0.08))),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -479,11 +483,13 @@ class _ErrorScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: C.surf1,
       appBar: AppBar(
-        backgroundColor: C.surf0, surfaceTintColor: Colors.transparent,
+        backgroundColor: C.navy800,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         automaticallyImplyLeading: false,
         title: Text('Processing Request',
-          style: GoogleFonts.inter(
-            fontSize: 16, fontWeight: FontWeight.w700, color: C.textPrimary)),
+          style: GoogleFonts.outfit(
+            fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white)),
       ),
       body: Center(
         child: Padding(

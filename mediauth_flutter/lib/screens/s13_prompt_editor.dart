@@ -161,7 +161,23 @@ class _PromptEditorScreenState extends State<PromptEditorScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: C.teal500))
+          ? Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SkeletonShimmer(width: double.infinity, height: 100, borderRadius: 12),
+                  const SizedBox(height: 16),
+                  const SkeletonShimmer(width: 120, height: 20, borderRadius: 4),
+                  const SizedBox(height: 12),
+                  const SkeletonShimmer(width: double.infinity, height: 180, borderRadius: 10),
+                  const SizedBox(height: 16),
+                  const SkeletonShimmer(width: 150, height: 20, borderRadius: 4),
+                  const SizedBox(height: 12),
+                  const SkeletonShimmer(width: double.infinity, height: 180, borderRadius: 10),
+                ],
+              ),
+            )
           : _error != null
               ? _ErrorBody(message: _error!, onRetry: _load)
               : _Body(

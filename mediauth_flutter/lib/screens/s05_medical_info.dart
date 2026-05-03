@@ -4,6 +4,10 @@ import '../theme/colors.dart';
 import '../widgets/shared_widgets.dart';
 import 's04_patient_info.dart';
 
+// ignore: unused_element (re-exported from s04)
+// _IntakeAppBar is defined in s04_patient_info.dart
+
+
 // ── Screen 5 — Medical Info ────────────────────────────────────────────────────
 
 class MedicalInfoScreen extends StatefulWidget {
@@ -77,17 +81,7 @@ class _MedicalInfoScreenState extends State<MedicalInfoScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: C.surf1,
-      appBar: AppBar(
-        backgroundColor: C.surf0,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: C.textPrimary),
-          onPressed: widget.onBack,
-        ),
-        title: Text('New Authorization',
-          style: GoogleFonts.inter(
-            fontSize: 16, fontWeight: FontWeight.w700, color: C.textPrimary)),
-      ),
+      appBar: IntakeAppBar(title: 'New Authorization', onBack: widget.onBack),
       body: SafeArea(
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),

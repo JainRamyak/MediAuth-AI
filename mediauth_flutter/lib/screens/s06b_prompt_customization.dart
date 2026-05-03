@@ -310,10 +310,30 @@ class _PromptCustomizationScreenState extends State<PromptCustomizationScreen>
                 },
                 children: [
                   if (_loading)
-                    const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(
-                        child: CircularProgressIndicator(color: C.teal500)),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              for (var i = 0; i < 4; i++)
+                                const Padding(
+                                  padding: EdgeInsets.only(right: 8),
+                                  child: SkeletonShimmer(width: 70, height: 32, borderRadius: 8),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          const SkeletonShimmer(width: 100, height: 16, borderRadius: 4),
+                          const SizedBox(height: 8),
+                          const SkeletonShimmer(width: double.infinity, height: 120, borderRadius: 8),
+                          const SizedBox(height: 24),
+                          const SkeletonShimmer(width: 150, height: 16, borderRadius: 4),
+                          const SizedBox(height: 8),
+                          const SkeletonShimmer(width: double.infinity, height: 120, borderRadius: 8),
+                        ],
+                      ),
                     )
                   else if (_agents.isEmpty)
                     Padding(
