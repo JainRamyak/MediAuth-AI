@@ -2,6 +2,7 @@
 import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from datetime import datetime
 from pydantic import BaseModel
 from models.database import get_db
 from models.patient import Patient
@@ -35,10 +36,41 @@ class AuthHistoryItem(BaseModel):
     patient_name: str | None
     justification_letter: str | None
     denial_reason: str | None
+    icd10_codes: list | None = []
+    cpt_codes: list | None = []
     created_at: str
 
 
 # ─── Endpoints ───
+@router.get("/history", response_model=list[AuthHistoryItem])
+@router.get("/authorize", response_model=list[AuthHistoryItem])
+def list_authorizations(limit: int = 50, db: Session = Depends(get_db)):
+    """Returns the most recent authorization requests with patient info joined."""
+    rows = (
+        db.query(AuthRequest, Patient)
+        .join(Patient, AuthRequest.patient_id == Patient.id)
+        .order_by(AuthRequest.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        AuthHistoryItem(
+            auth_request_id=str(ar.id),
+            workflow_status=ar.status or "unknown",
+            appeal_level=ar.appeal_level or 0,
+            insurer=p.insurer_name,
+            policy_number=p.insurance_policy_number,
+            patient_name=p.name,
+            justification_letter=ar.justification_letter,
+            denial_reason=ar.denial_reason,
+            icd10_codes=ar.icd10_codes or [],
+            cpt_codes=ar.cpt_codes or [],
+            created_at=ar.created_at.isoformat() if ar.created_at else "",
+        )
+        for ar, p in rows
+    ]
+
+
 @router.post("/authorize", response_model=AuthorizationResponse)
 async def run_authorization(request: PatientIntakeRequest, db: Session = Depends(get_db)):
     try:
@@ -116,33 +148,6 @@ async def run_authorization(request: PatientIntakeRequest, db: Session = Depends
         raise HTTPException(status_code=500, detail=f"Workflow failed: {str(e)}")
 
 
-# ─── GET /authorize — list all requests (newest first) ───
-@router.get("/authorize", response_model=list[AuthHistoryItem])
-def list_authorizations(limit: int = 50, db: Session = Depends(get_db)):
-    """Returns the most recent authorization requests with patient info joined."""
-    rows = (
-        db.query(AuthRequest, Patient)
-        .join(Patient, AuthRequest.patient_id == Patient.id)
-        .order_by(AuthRequest.created_at.desc())
-        .limit(limit)
-        .all()
-    )
-    return [
-        AuthHistoryItem(
-            auth_request_id=str(ar.id),
-            workflow_status=ar.status or "unknown",
-            appeal_level=ar.appeal_level or 0,
-            insurer=p.insurer_name,
-            policy_number=p.insurance_policy_number,
-            patient_name=p.name,
-            justification_letter=ar.justification_letter,
-            denial_reason=ar.denial_reason,
-            created_at=ar.created_at.isoformat() if ar.created_at else "",
-        )
-        for ar, p in rows
-    ]
-
-
 # ─── GET /authorize/{auth_request_id} — single request detail ───
 @router.get("/authorize/{auth_request_id}", response_model=AuthHistoryItem)
 def get_authorization(auth_request_id: str, db: Session = Depends(get_db)):
@@ -171,5 +176,7 @@ def get_authorization(auth_request_id: str, db: Session = Depends(get_db)):
         patient_name=p.name,
         justification_letter=ar.justification_letter,
         denial_reason=ar.denial_reason,
+        icd10_codes=ar.icd10_codes or [],
+        cpt_codes=ar.cpt_codes or [],
         created_at=ar.created_at.isoformat() if ar.created_at else "",
-    )
+    )
