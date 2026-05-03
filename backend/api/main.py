@@ -38,11 +38,24 @@ app.include_router(prompts_router)
 
 @app.get("/health")
 def health_check():
+    import bcrypt
+    import passlib
+    import hashlib
+    try:
+        bcrypt_ver = getattr(bcrypt, "__version__", "unknown")
+    except:
+        bcrypt_ver = "error"
+        
     return {
         "status": "ok",
         "service": "MediAuth AI",
-        "version": "0.1.0",
-        "environment": os.getenv("ENVIRONMENT", "development")
+        "version": "0.1.1",
+        "environment": os.getenv("ENVIRONMENT", "development"),
+        "debug": {
+            "bcrypt": bcrypt_ver,
+            "passlib": getattr(passlib, "__version__", "unknown"),
+            "sha256": hashlib.sha256().name
+        }
     }
 
 @app.get("/debug/versions")
