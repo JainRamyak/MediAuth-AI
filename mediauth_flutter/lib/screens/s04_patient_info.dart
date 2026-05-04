@@ -333,14 +333,14 @@ class _PatientInfoScreenState extends State<PatientInfoScreen> {
 class IntakeAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final VoidCallback onBack;
-  const IntakeAppBar({required this.title, required this.onBack});
+  const IntakeAppBar({super.key, required this.title, required this.onBack});
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
   Widget build(BuildContext context) => AppBar(
-    backgroundColor: C.navy800,
+    backgroundColor: C.primary500,
     surfaceTintColor: Colors.transparent,
     elevation: 0,
     leading: IconButton(
@@ -348,16 +348,10 @@ class IntakeAppBar extends StatelessWidget implements PreferredSizeWidget {
       onPressed: onBack,
     ),
     title: Text(title,
-      style: GoogleFonts.outfit(
-        fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white)),
-    bottom: PreferredSize(
-      preferredSize: const Size.fromHeight(0.5),
-      child: Container(height: 0.5, color: Colors.white.withValues(alpha: 0.08)),
-    ),
+      style: GoogleFonts.inter(
+        fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
   );
 }
-
-// ─── Form Section Card ────────────────────────────────────────────────────────
 
 class _FormSectionCard extends StatelessWidget {
   final IconData icon;
@@ -368,36 +362,34 @@ class _FormSectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
-      color: C.surf0,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: C.surf3.withValues(alpha: 0.7), width: 0.5),
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: C.surf3.withValues(alpha: 0.5), width: 1.0),
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-      // Section header
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
         child: Row(children: [
           Container(
-            width: 30, height: 30,
-            decoration: BoxDecoration(color: C.teal50, borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, size: 15, color: C.teal500),
+            width: 32, height: 32,
+            decoration: BoxDecoration(color: C.primary100, borderRadius: BorderRadius.circular(8)),
+            child: Icon(icon, size: 16, color: C.primary500),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Text(label,
-            style: GoogleFonts.outfit(
-              fontSize: 14, fontWeight: FontWeight.w700,
+            style: GoogleFonts.inter(
+              fontSize: 15, fontWeight: FontWeight.w700,
               color: C.textPrimary, letterSpacing: -0.2)),
         ]),
       ),
-
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
         child: child,
       ),
     ]),
   );
 }
+
 
 // ─── Picker Row ───────────────────────────────────────────────────────────────
 

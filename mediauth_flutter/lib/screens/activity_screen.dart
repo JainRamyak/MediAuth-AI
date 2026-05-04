@@ -119,33 +119,33 @@ class _ActivityScreenState extends State<ActivityScreen> {
     return Scaffold(
       backgroundColor: C.surf1,
       appBar: AppBar(
-        backgroundColor: C.navy800,
+        backgroundColor: C.primary500,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
         title: Text('Activity History',
-          style: GoogleFonts.outfit(
-            fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
+          style: GoogleFonts.inter(
+            fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
+          preferredSize: const Size.fromHeight(64),
           child: Container(
-            color: C.navy800,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            color: C.primary500,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
                 hintText: 'Search by patient, insurer or treatment…',
-                hintStyle: GoogleFonts.inter(fontSize: 13, color: C.textTertiary),
-                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: C.textTertiary),
+                hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.6)),
+                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Colors.white70),
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none),
-                filled: true, fillColor: Colors.white.withValues(alpha: 0.10),
+                filled: true, fillColor: Colors.white.withValues(alpha: 0.15),
                 isDense: true,
               ),
               style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
@@ -155,17 +155,16 @@ class _ActivityScreenState extends State<ActivityScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _load,
-        color: C.teal500,
+        color: C.primary500,
         child: CustomScrollView(
           slivers: [
-
 
             // ── Filter chips ───────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                 child: SizedBox(
-                  height: 34,
+                  height: 36,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     children: _filters.map((f) {
@@ -176,16 +175,18 @@ class _ActivityScreenState extends State<ActivityScreen> {
                           duration: const Duration(milliseconds: 180),
                           margin: const EdgeInsets.only(right: 8),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 4),
+                              horizontal: 16, vertical: 6),
                           decoration: BoxDecoration(
-                            color: active ? C.teal500 : C.surf2,
-                            borderRadius: BorderRadius.circular(999),
+                            color: active ? C.primary500 : Colors.white,
+                            borderRadius: BorderRadius.circular(100),
                             border: Border.all(
-                              color: active ? C.teal500 : C.surf3, width: 0.5)),
-                          child: Text(f,
-                            style: GoogleFonts.inter(
-                              fontSize: 12, fontWeight: FontWeight.w600,
-                              color: active ? Colors.white : C.textSecondary)),
+                              color: active ? C.primary500 : C.surf3, width: 1.0)),
+                          child: Center(
+                            child: Text(f,
+                              style: GoogleFonts.inter(
+                                fontSize: 13, fontWeight: FontWeight.w600,
+                                color: active ? Colors.white : C.textSecondary)),
+                          ),
                         ),
                       );
                     }).toList(),
@@ -201,8 +202,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   return FadeSlide(
                     delay: Duration(milliseconds: i * 100),
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: const SkeletonShimmer(width: double.infinity, height: 110, borderRadius: 14),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: const SkeletonShimmer(width: double.infinity, height: 110, borderRadius: 24),
                     ),
                   );
                 }, childCount: 4),
@@ -221,7 +222,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
               ),
 
             SliverToBoxAdapter(
-              child: SizedBox(height: MediaQuery.of(context).padding.bottom + 32),
+              child: SizedBox(height: MediaQuery.of(context).padding.bottom + 100),
             ),
           ],
         ),
@@ -260,44 +261,47 @@ class _HistoryCard extends StatelessWidget {
                       '${date.year}';
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: C.surf0,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: C.surf3, width: 0.5),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: C.surf3.withValues(alpha: 0.5), width: 1.0),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 5)),
+            ],
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(
                 child: Text(treatment,
                   style: GoogleFonts.inter(
-                    fontSize: 14, fontWeight: FontWeight.w600, color: C.textPrimary),
+                    fontSize: 15, fontWeight: FontWeight.w700, color: C.textPrimary),
                   maxLines: 2, overflow: TextOverflow.ellipsis)),
               const SizedBox(width: 8),
               StatusPill(_authStatus),
             ]),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               [insurer, if (policy.isNotEmpty) 'Policy $policy']
                   .where((e) => e.isNotEmpty).join('  ·  '),
-              style: GoogleFonts.inter(fontSize: 12, color: C.textSecondary)),
-            const SizedBox(height: 8),
+              style: GoogleFonts.inter(fontSize: 13, color: C.textSecondary, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 12),
             Row(children: [
               if (shortId.isNotEmpty) ...[
                 Text('ID $shortId',
-                  style: GoogleFonts.jetBrainsMono(fontSize: 11, color: C.textTertiary)),
+                  style: GoogleFonts.jetBrainsMono(fontSize: 11, color: C.textTertiary, fontWeight: FontWeight.w500)),
                 const SizedBox(width: 12),
               ],
               Text(dateStr,
-                style: GoogleFonts.inter(fontSize: 11, color: C.textTertiary)),
+                style: GoogleFonts.inter(fontSize: 11, color: C.textTertiary, fontWeight: FontWeight.w500)),
               const Spacer(),
-              Text('View →',
+              Text('View Details →',
                 style: GoogleFonts.inter(
-                  fontSize: 12, color: C.teal600, fontWeight: FontWeight.w600)),
+                  fontSize: 12, color: C.primary600, fontWeight: FontWeight.w700)),
             ]),
           ]),
         ),

@@ -1,6 +1,7 @@
 /// ---------------------------------------------------------------------------
 /// auth_service.dart  — Custom FastAPI Authentication
 /// ---------------------------------------------------------------------------
+library;
 
 import 'dart:async';
 import 'dart:convert';
@@ -114,8 +115,10 @@ class AuthService {
         _authStateController.add(AuthState(AuthChangeEvent.signedIn, _currentUser));
         
         return AuthResult.ok(_currentUser);
+      } else if (res.statusCode == 404) {
+        return AuthResult.fail('This email is not registered.');
       } else if (res.statusCode == 401) {
-        return AuthResult.fail('Incorrect email or password.');
+        return AuthResult.fail('Incorrect password. Please try again.');
       } else {
         return AuthResult.fail('Login failed (${res.statusCode})');
       }

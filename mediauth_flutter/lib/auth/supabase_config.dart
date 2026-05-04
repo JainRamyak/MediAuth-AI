@@ -5,7 +5,7 @@
 /// Values are loaded from the .env file at runtime.
 /// ---------------------------------------------------------------------------
 
-library supabase_config;
+library;
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 

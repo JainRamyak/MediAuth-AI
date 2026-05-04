@@ -49,7 +49,9 @@ class _MedicalInfoScreenState extends State<MedicalInfoScreen> {
 
   @override
   void dispose() {
-    for (final c in _medCtrls) c.dispose();
+    for (final c in _medCtrls) {
+      c.dispose();
+    }
     _allergies.dispose(); _history.dispose(); _doctor.dispose();
     super.dispose();
   }
@@ -99,21 +101,21 @@ class _MedicalInfoScreenState extends State<MedicalInfoScreen> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: C.teal50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: C.teal500.withValues(alpha: 0.2)),
+                  color: C.primary100,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: C.primary500.withValues(alpha: 0.2)),
                 ),
                 child: Row(children: [
-                  const Icon(Icons.medical_services_outlined, size: 18, color: C.teal600),
+                  const Icon(Icons.medical_services_outlined, size: 18, color: C.primary500),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Write in plain English — our AI converts everything to medical terminology.',
-                      style: GoogleFonts.inter(fontSize: 12, color: C.teal700, height: 1.4)),
+                      style: GoogleFonts.inter(fontSize: 12, color: C.primary700, height: 1.4)),
                   ),
                   GestureDetector(
                     onTap: () => setState(() => _bannerDismissed = true),
-                    child: const Icon(Icons.close, size: 16, color: C.teal600),
+                    child: const Icon(Icons.close, size: 16, color: C.primary500),
                   ),
                 ]),
               ),
@@ -172,19 +174,19 @@ class _MedicalInfoScreenState extends State<MedicalInfoScreen> {
             GestureDetector(
               onTap: _addMed,
               child: Container(
-                height: 40,
+                height: 44,
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
-                  color: C.teal50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: C.teal500.withValues(alpha: 0.3)),
+                  color: C.primary100,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: C.primary500.withValues(alpha: 0.3)),
                 ),
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Icon(Icons.add_rounded, size: 16, color: C.teal600),
+                  const Icon(Icons.add_rounded, size: 16, color: C.primary500),
                   const SizedBox(width: 6),
                   Text('+ Add Medication',
                     style: GoogleFonts.inter(
-                      fontSize: 13, fontWeight: FontWeight.w600, color: C.teal600)),
+                      fontSize: 13, fontWeight: FontWeight.w600, color: C.primary700)),
                 ]),
               ),
             ),
@@ -217,7 +219,7 @@ class _MedicalInfoScreenState extends State<MedicalInfoScreen> {
             Container(
               decoration: BoxDecoration(
                 color: C.surf2,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: C.surf3, width: 0.5),
               ),
               child: Row(
@@ -229,8 +231,8 @@ class _MedicalInfoScreenState extends State<MedicalInfoScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: isSelected ? C.teal500 : Colors.transparent,
-                          borderRadius: BorderRadius.circular(10),
+                          color: isSelected ? C.primary500 : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         alignment: Alignment.center,
                         child: Text(type,
@@ -275,9 +277,9 @@ class _MedicalInfoScreenState extends State<MedicalInfoScreen> {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: C.textPrimary,
                           side: const BorderSide(color: C.surf3),
-                          minimumSize: const Size(0, 52),
+                          minimumSize: const Size(0, 56),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
+                            borderRadius: BorderRadius.circular(24)),
                         ),
                         child: const Text('← Back'),
                       ),
@@ -288,12 +290,12 @@ class _MedicalInfoScreenState extends State<MedicalInfoScreen> {
                       child: ElevatedButton(
                         onPressed: _canContinue ? () { _save(); widget.onNext(); } : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: C.teal500,
+                          backgroundColor: C.primary500,
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          minimumSize: const Size(0, 52),
+                          minimumSize: const Size(0, 56),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
+                            borderRadius: BorderRadius.circular(24)),
                         ),
                         child: Text('Next: Review →',
                           style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700)),
@@ -307,5 +309,6 @@ class _MedicalInfoScreenState extends State<MedicalInfoScreen> {
         ),
       ),
     );
+
   }
 }

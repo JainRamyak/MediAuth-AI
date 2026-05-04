@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'auth/auth_service.dart';
@@ -278,24 +277,16 @@ class _ShellScreen extends StatefulWidget {
 class _ShellScreenState extends State<_ShellScreen> {
   int _tab = 0;
 
-  static const _items = [
-    _NavMeta(label: 'Home',    icon: Icons.home_outlined,          activeIcon: Icons.home_rounded),
-    _NavMeta(label: 'History', icon: Icons.history_outlined,       activeIcon: Icons.history_rounded),
-    _NavMeta(label: 'Agents',  icon: Icons.smart_toy_outlined,     activeIcon: Icons.smart_toy_rounded),
-    _NavMeta(label: 'Profile', icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final bottomPad = MediaQuery.of(context).padding.bottom;
-
     final tabs = [
       DashboardScreen(
         onNewRequest: widget.onNewRequest,
         onRequestTap: widget.onRequestTap,
-        onProfileTap: () => setState(() => _tab = 3),
+        onProfileTap: () => setState(() => _tab = 4),
       ),
       ActivityScreen(onRequestTap: widget.onRequestTap),
+      const Scaffold(body: Center(child: Text('New Request Placeholder'))), // Center tab (not used directly)
       AgentListScreen(onAgentTap: widget.onAgentDetail),
       ProfileScreen(onLogout: () => AuthService.instance.signOut()),
     ];
@@ -303,127 +294,66 @@ class _ShellScreenState extends State<_ShellScreen> {
     return Scaffold(
       extendBody: true,
       body: IndexedStack(index: _tab, children: tabs),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: Container(
+        margin: const EdgeInsets.only(top: 10),
+        width: 64, height: 64,
+        child: FloatingActionButton(
+          onPressed: widget.onNewRequest,
+          backgroundColor: C.primary500,
+          elevation: 8,
+          shape: const CircleBorder(),
+          child: const Icon(Icons.add_rounded, color: Colors.white, size: 32),
+        ),
+      ),
       bottomNavigationBar: Container(
-        // Matches dashboard header — no floating pill, no shadow
-        color: C.navy800,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Hairline separator
-            Container(height: 0.5, color: Colors.white.withValues(alpha: 0.07)),
-            Padding(
-              padding: EdgeInsets.fromLTRB(8, 8, 8, 8 + bottomPad),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: List.generate(_items.length, (i) => _NavItem(
-                  meta:      _items[i],
-                  active:    _tab == i,
-                  // Show amber badge on History tab when there are pending items
-                  showBadge: i == 1,
-                  onTap:     () => setState(() => _tab = i),
-                )),
-              ),
-            ),
-          ],
+        height: 80 + MediaQuery.of(context).padding.bottom,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, -5))],
+        ),
+        child: BottomAppBar(
+          padding: EdgeInsets.zero,
+          color: Colors.white,
+          elevation: 0,
+          notchMargin: 10,
+          shape: const CircularNotchedRectangle(),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _NavItem(icon: Icons.home_rounded, active: _tab == 0, onTap: () => setState(() => _tab = 0)),
+              _NavItem(icon: Icons.history_rounded, active: _tab == 1, onTap: () => setState(() => _tab = 1)),
+              const SizedBox(width: 48), // Space for FAB
+              _NavItem(icon: Icons.chat_bubble_outline_rounded, active: _tab == 3, onTap: () => setState(() => _tab = 3)),
+              _NavItem(icon: Icons.person_rounded, active: _tab == 4, onTap: () => setState(() => _tab = 4)),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ── Nav metadata (immutable data class) ──────────────────────────────────────
-
-@immutable
-class _NavMeta {
-  final String   label;
-  final IconData icon;
-  final IconData activeIcon;
-  const _NavMeta({
-    required this.label,
-    required this.icon,
-    required this.activeIcon,
-  });
-}
-
-// ── Nav item ──────────────────────────────────────────────────────────────────
-
 class _NavItem extends StatelessWidget {
-  final _NavMeta     meta;
-  final bool         active;
-  final bool         showBadge;
+  final IconData icon;
+  final bool active;
   final VoidCallback onTap;
 
-  const _NavItem({
-    required this.meta,
-    required this.active,
-    required this.onTap,
-    this.showBadge = false,
-  });
+  const _NavItem({required this.icon, required this.active, required this.onTap});
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    behavior: HitTestBehavior.opaque,
-    child: SizedBox(
-      width: 72,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-
-          // ── Icon with optional notification badge ──────────────
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                width: 44, height: 36,
-                decoration: BoxDecoration(
-                  color: active
-                      ? C.teal500.withValues(alpha: 0.15)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  active ? meta.activeIcon : meta.icon,
-                  size: 22,
-                  color: active
-                      ? C.teal400
-                      : Colors.white.withValues(alpha: 0.35),
-                ),
-              ),
-              if (showBadge)
-                Positioned(
-                  top: -1, right: -1,
-                  child: Container(
-                    width: 8, height: 8,
-                    decoration: BoxDecoration(
-                      color: C.amber500,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: C.navy800, width: 1.5),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-
-          const SizedBox(height: 4),
-
-
-
-          // ── Active indicator dot ───────────────────────────────
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            width:  active ? 4 : 0,
-            height: active ? 4 : 0,
-            decoration: const BoxDecoration(
-              color:  C.teal500,
-              shape:  BoxShape.circle,
-            ),
-          ),
-        ],
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(100),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Icon(
+          icon,
+          size: 26,
+          color: active ? C.primary500 : C.textTertiary,
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

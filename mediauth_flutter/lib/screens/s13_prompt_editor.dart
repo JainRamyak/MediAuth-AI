@@ -82,10 +82,12 @@ class _PromptEditorScreenState extends State<PromptEditorScreen> {
       _userTemplate.text = _origUser;
       if (mounted) setState(() => _loading = false);
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _error = 'Could not load prompt. Is the backend running?';
         _loading = false;
       });
+      }
     }
   }
 

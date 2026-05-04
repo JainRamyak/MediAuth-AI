@@ -61,11 +61,13 @@ class _AgentListScreenState extends State<AgentListScreen> {
       }
       if (mounted) setState(() => _loading = false);
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _error = 'Could not connect to backend. Is the server running?';
         _loading = false;
         _backendUp = false;
       });
+      }
     }
   }
 
@@ -80,38 +82,39 @@ class _AgentListScreenState extends State<AgentListScreen> {
     return Scaffold(
       backgroundColor: C.surf1,
       appBar: AppBar(
-        backgroundColor: C.surf0,
+        backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
-        title: Text('🤖  AI Agents',
+        elevation: 0,
+        title: Text('AI Agents Dashboard',
           style: GoogleFonts.inter(
-            fontSize: 18, fontWeight: FontWeight.w700, color: C.textPrimary)),
+            fontSize: 18, fontWeight: FontWeight.w800, color: C.primary600)),
         automaticallyImplyLeading: false,
       ),
       body: RefreshIndicator(
         onRefresh: _load,
-        color: C.teal500,
+        color: C.primary500,
         child: CustomScrollView(
           slivers: [
             // ── System health strip ──────────────────────────────────────
             SliverToBoxAdapter(
               child: Container(
-                color: _backendUp ? C.teal50 : C.amber50,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                color: _backendUp ? C.primary100 : C.amber50,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(children: [
                   Container(
-                    width: 8, height: 8,
+                    width: 10, height: 10,
                     decoration: BoxDecoration(
-                      color: _backendUp ? C.green500 : C.amber500,
+                      color: _backendUp ? C.primary500 : C.amber500,
                       shape: BoxShape.circle),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Text(
                     _backendUp
-                        ? '${_agentOrder.length}/${_agentOrder.length} Agents Live  ·  System: Operational'
+                        ? '${_agentOrder.length}/${_agentOrder.length} Agents Live  ·  System Operational'
                         : 'Backend offline — showing cached data',
                     style: GoogleFonts.inter(
-                      fontSize: 12, fontWeight: FontWeight.w500,
-                      color: _backendUp ? C.teal700 : C.amber700)),
+                      fontSize: 13, fontWeight: FontWeight.w600,
+                      color: _backendUp ? C.primary700 : C.amber700)),
                 ]),
               ),
             ),
@@ -119,10 +122,10 @@ class _AgentListScreenState extends State<AgentListScreen> {
             // ── Subtitle ─────────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
                 child: Text(
                   'Every agent working on your behalf — visible, inspectable, and customizable.',
-                  style: GoogleFonts.inter(fontSize: 13, color: C.textSecondary)),
+                  style: GoogleFonts.inter(fontSize: 14, color: C.textSecondary, height: 1.5)),
               ),
             ),
 
@@ -148,8 +151,8 @@ class _AgentListScreenState extends State<AgentListScreen> {
                   return FadeSlide(
                     delay: Duration(milliseconds: i * 100),
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: const SkeletonShimmer(width: double.infinity, height: 130, borderRadius: 14),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: const SkeletonShimmer(width: double.infinity, height: 130, borderRadius: 24),
                     ),
                   );
                 }, childCount: 5),
@@ -175,7 +178,7 @@ class _AgentListScreenState extends State<AgentListScreen> {
                 }, childCount: _agentOrder.length),
               ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         ),
       ),
@@ -207,97 +210,107 @@ class _AgentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      child: Material(
-        color: C.surf0,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: C.surf3, width: 0.5),
-            ),
-            child: Column(
-              children: [
-                // Top row
-                Row(children: [
-                  // Numbered circle
-                  Container(
-                    width: 44, height: 44,
-                    decoration: const BoxDecoration(
-                      color: C.teal50, shape: BoxShape.circle),
-                    child: Center(
-                      child: Text('$index',
-                        style: GoogleFonts.inter(
-                          fontSize: 18, fontWeight: FontWeight.w800,
-                          color: C.teal600)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(displayName,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 5)),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(24),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: C.surf3.withValues(alpha: 0.5), width: 1.0),
+              ),
+              child: Column(
+                children: [
+                  // Top row
+                  Row(children: [
+                    // Numbered circle
+                    Container(
+                      width: 48, height: 48,
+                      decoration: BoxDecoration(
+                        color: C.primary100, shape: BoxShape.circle),
+                      child: Center(
+                        child: Text('$index',
                           style: GoogleFonts.inter(
-                            fontSize: 14, fontWeight: FontWeight.w700,
-                            color: C.textPrimary)),
-                        Text('System + User template',
-                          style: GoogleFonts.inter(
-                            fontSize: 12, color: C.textTertiary)),
-                      ],
-                    ),
-                  ),
-                  // ● Live pill
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: C.teal500, width: 0.8),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Container(
-                        width: 7, height: 7,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF00C853), shape: BoxShape.circle),
+                            fontSize: 20, fontWeight: FontWeight.w800,
+                            color: C.primary600)),
                       ),
-                      const SizedBox(width: 4),
-                      Text('Live',
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(displayName,
+                            style: GoogleFonts.inter(
+                              fontSize: 15, fontWeight: FontWeight.w800,
+                              color: C.textPrimary)),
+                          const SizedBox(height: 2),
+                          Text('System + User template',
+                            style: GoogleFonts.inter(
+                              fontSize: 13, color: C.textTertiary, fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
+                    // ● Live pill
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: C.primary100.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Container(
+                          width: 8, height: 8,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF00C853), shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 6),
+                        Text('Live',
+                          style: GoogleFonts.inter(
+                            fontSize: 11, color: C.primary700,
+                            fontWeight: FontWeight.w700)),
+                      ]),
+                    ),
+                  ]),
+                  const SizedBox(height: 16),
+                  const Divider(height: 1),
+                  const SizedBox(height: 16),
+                  // Bottom row
+                  Row(children: [
+                    const Icon(Icons.description_outlined, size: 14, color: C.primary500),
+                    const SizedBox(width: 6),
+                    Text(charCount > 0 ? '$charCount chars' : 'No data',
+                      style: GoogleFonts.inter(fontSize: 12, color: C.primary700, fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 16),
+                    Icon(Icons.check_circle_outline_rounded,
+                      size: 14, color: hasPrompt ? C.primary500 : C.textTertiary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(subtitle,
                         style: GoogleFonts.inter(
-                          fontSize: 11, color: C.teal600,
-                          fontWeight: FontWeight.w600)),
-                    ]),
-                  ),
-                ]),
-                const SizedBox(height: 10),
-                const Divider(height: 1),
-                const SizedBox(height: 10),
-                // Bottom row
-                Row(children: [
-                  Text('Ʈr',
-                    style: GoogleFonts.inter(
-                      fontSize: 13, fontWeight: FontWeight.w700, color: C.teal500)),
-                  const SizedBox(width: 4),
-                  Text(charCount > 0 ? '$charCount chars' : 'No data',
-                    style: GoogleFonts.inter(fontSize: 12, color: C.teal600)),
-                  const SizedBox(width: 16),
-                  Icon(Icons.check_circle_outline_rounded,
-                    size: 13, color: hasPrompt ? C.green500 : C.textTertiary),
-                  const SizedBox(width: 4),
-                  Text(subtitle,
-                    style: GoogleFonts.inter(
-                      fontSize: 11, color: C.textTertiary),
-                    overflow: TextOverflow.ellipsis),
-                  const Spacer(),
-                  Text('Edit →',
-                    style: GoogleFonts.inter(
-                      fontSize: 13, color: C.teal500,
-                      fontWeight: FontWeight.w700)),
-                ]),
-              ],
+                          fontSize: 12, color: C.textTertiary, fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('Edit →',
+                      style: GoogleFonts.inter(
+                        fontSize: 13, color: C.primary600,
+                        fontWeight: FontWeight.w800)),
+                  ]),
+                ],
+              ),
             ),
           ),
         ),
@@ -305,3 +318,4 @@ class _AgentCard extends StatelessWidget {
     );
   }
 }
+

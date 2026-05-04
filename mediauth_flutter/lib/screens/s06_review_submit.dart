@@ -98,11 +98,11 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: C.teal50,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: C.teal500.withValues(alpha: 0.25)),
+                color: C.primary100,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: C.primary500.withValues(alpha: 0.2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,19 +118,19 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
                     _ReviewRow('Physician', widget.patient.doctorName),
                   _ReviewRow('Treatment', _treatment.text.trim().isNotEmpty
                       ? _treatment.text.trim() : '(not filled yet)'),
-                  const Divider(height: 16),
+                  const Divider(height: 24),
                   Row(children: [
-                    const Icon(Icons.edit_outlined, size: 13, color: C.textTertiary),
-                    const SizedBox(width: 6),
+                    const Icon(Icons.edit_outlined, size: 14, color: C.primary600),
+                    const SizedBox(width: 8),
                     Text('Tap Back to edit any section',
-                      style: GoogleFonts.inter(fontSize: 11, color: C.textTertiary)),
+                      style: GoogleFonts.inter(fontSize: 12, color: C.primary700, fontWeight: FontWeight.w500)),
                   ]),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text('Our AI processes your request in 20–30 seconds.',
-              style: GoogleFonts.inter(fontSize: 12, color: C.textTertiary),
+              style: GoogleFonts.inter(fontSize: 13, color: C.textTertiary),
               textAlign: TextAlign.center),
             const SizedBox(height: 24),
 
@@ -149,20 +149,20 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
                       // HIPAA Consent
                       Container(
                         decoration: BoxDecoration(
-                          color: C.teal50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: C.teal400.withValues(alpha: 0.5)),
+                          color: C.primary100,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: C.primary500.withValues(alpha: 0.3)),
                         ),
                         child: CheckboxListTile(
                           value: _consentGiven,
                           onChanged: (val) => setState(() => _consentGiven = val ?? false),
-                          activeColor: C.teal600,
+                          activeColor: C.primary500,
                           checkColor: Colors.white,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                           controlAffinity: ListTileControlAffinity.leading,
                           title: Text(
                             'I consent to the processing of this medical data by MediAuth AI in accordance with HIPAA guidelines.',
-                            style: GoogleFonts.inter(fontSize: 12, color: C.teal800, fontWeight: FontWeight.w500, height: 1.4),
+                            style: GoogleFonts.inter(fontSize: 12, color: C.primary800, fontWeight: FontWeight.w500, height: 1.4),
                           ),
                         ),
                       ),
@@ -174,20 +174,20 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
                         icon: Icons.send_rounded,
                         onPressed: _canSubmit ? () { _save(); widget.onSubmit(); } : null,
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       OutlinedButton.icon(
                         icon: const Icon(Icons.settings_outlined, size: 18),
                         label: const Text('View & Customize AI Prompts (Optional)'),
                         onPressed: () { _save(); widget.onCustomize(); },
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: C.teal600,
-                          side: const BorderSide(color: C.teal500, width: 0.8),
-                          minimumSize: const Size(double.infinity, 52),
+                          foregroundColor: C.primary600,
+                          side: const BorderSide(color: C.primary500, width: 1.0),
+                          minimumSize: const Size(double.infinity, 56),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
+                            borderRadius: BorderRadius.circular(24)),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       Center(
                         child: Text(
                           "Not sure? Just tap Submit — the AI handles everything.",
@@ -200,6 +200,7 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
                 ),
               ),
             ),
+
           ],
         ),
       ),

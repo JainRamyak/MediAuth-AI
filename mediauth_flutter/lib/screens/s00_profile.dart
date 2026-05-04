@@ -81,65 +81,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
         physics: const BouncingScrollPhysics(),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-          // ── Navy hero header ──────────────────────────────────────────
+          // ── Primary blue hero header ──────────────────────────────────────────
           Container(
             width: double.infinity,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [C.navy900, C.navy800],
+                colors: [C.primary600, C.primary500],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
             ),
-            padding: EdgeInsets.fromLTRB(20, topPad + 20, 20, 28),
+            padding: EdgeInsets.fromLTRB(20, topPad + 24, 20, 32),
             child: Column(children: [
 
               // Avatar + name
               Stack(alignment: Alignment.center, children: [
                 // Subtle ring
                 Container(
-                  width: 92, height: 92,
+                  width: 96, height: 96,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: C.teal500.withValues(alpha: 0.3), width: 2),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 3),
                   ),
                 ),
                 FloatingAnimation(
                   child: Container(
-                    width: 78, height: 78,
-                    decoration: const BoxDecoration(color: C.teal500, shape: BoxShape.circle),
+                    width: 80, height: 80,
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                     child: Center(child: Text(_initials,
-                      style: GoogleFonts.outfit(
-                        fontSize: 30, fontWeight: FontWeight.w700, color: Colors.white))),
+                      style: GoogleFonts.inter(
+                        fontSize: 28, fontWeight: FontWeight.w800, color: C.primary600))),
                   ),
                 ),
               ]),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               if (_name.isNotEmpty)
                 Text(_name,
-                  style: GoogleFonts.outfit(
-                    fontSize: 22, fontWeight: FontWeight.w700,
-                    color: Colors.white, letterSpacing: -0.3)),
-              const SizedBox(height: 4),
+                  style: GoogleFonts.inter(
+                    fontSize: 24, fontWeight: FontWeight.w800,
+                    color: Colors.white, letterSpacing: -0.5)),
+              const SizedBox(height: 6),
               Text(_email,
-                style: GoogleFonts.inter(fontSize: 14, color: Colors.white54)),
-              const SizedBox(height: 16),
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.white70, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 20),
 
               // HIPAA badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.verified_user_rounded, size: 13, color: C.teal400),
-                  const SizedBox(width: 7),
+                  const Icon(Icons.verified_user_rounded, size: 14, color: Colors.white),
+                  const SizedBox(width: 8),
                   Text('HIPAA Compliant',
                     style: GoogleFonts.inter(
-                      fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w500)),
+                      fontSize: 13, color: Colors.white, fontWeight: FontWeight.w700)),
                 ]),
               ),
             ]),
@@ -147,8 +147,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // ── Stats row ────────────────────────────────────────────────
           Container(
-            color: C.surf0,
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 20),
             child: Row(children: [
               _isLoading ? const SkeletonShimmer(width: 80, height: 44, borderRadius: 8) : _StatPill(label: 'Total Requests',  value: '$_totalRequests'),
               _Divider(),
@@ -158,29 +158,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ]),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
 
           // ── Account section ───────────────────────────────────────────
-          _SectionTitle('Account'),
+          _SectionTitle('Account settings'),
           _SettingsGroup(tiles: [
             _Tile(
               icon: Icons.person_outline_rounded,
               label: 'Edit Profile',
-              onTap: () => showMediToast(context, 'Coming soon'),
+              onTap: () => showMediToast(context, 'Feature available in next update'),
             ),
             _Tile(
               icon: Icons.lock_outline_rounded,
-              label: 'Change Password',
-              onTap: () => showMediToast(context, 'Coming soon'),
+              label: 'Security & Privacy',
+              onTap: () => showMediToast(context, 'Feature available in next update'),
             ),
             _Tile(
               icon: Icons.notifications_outlined,
-              label: 'Notifications',
-              onTap: () => showMediToast(context, 'Coming soon'),
+              label: 'Push Notifications',
+              onTap: () => showMediToast(context, 'Feature available in next update'),
             ),
           ]),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
           // ── App section ───────────────────────────────────────────────
           _SectionTitle('About'),
@@ -188,7 +188,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _Tile(
               icon: Icons.info_outline_rounded,
               label: 'About MediAuth AI',
-              subtitle: 'v1.0.0 · Hackathon Build',
+              subtitle: 'v1.1.0 · Premium Build',
               onTap: () {},
             ),
             _Tile(
@@ -198,18 +198,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             _Tile(
               icon: Icons.help_outline_rounded,
-              label: 'Support',
-              onTap: () => showMediToast(context, 'Coming soon'),
+              label: 'Help & Support',
+              onTap: () => showMediToast(context, 'Connecting to support...'),
             ),
           ]),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: 32),
 
           // ── Sign out ─────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: SizedBox(
-              width: double.infinity, height: 52,
+              width: double.infinity, height: 56,
               child: OutlinedButton.icon(
                 onPressed: () async {
                   await AuthService.instance.signOut();
@@ -218,17 +218,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: const Icon(Icons.logout_rounded, size: 18, color: C.red500),
                 label: Text('Sign Out',
                   style: GoogleFonts.inter(
-                    fontSize: 15, fontWeight: FontWeight.w600, color: C.red500)),
+                    fontSize: 15, fontWeight: FontWeight.w700, color: C.red500)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: C.red500,
-                  side: const BorderSide(color: C.red500, width: 0.8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  side: const BorderSide(color: C.red500, width: 1.2),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                 ),
               ),
             ),
           ),
 
-          const SizedBox(height: 36),
+          const SizedBox(height: 100),
         ]),
       ),
     );
@@ -246,12 +246,12 @@ class _StatPill extends StatelessWidget {
   Widget build(BuildContext context) => Expanded(
     child: Column(children: [
       Text(value,
-        style: GoogleFonts.outfit(
+        style: GoogleFonts.inter(
           fontSize: 22, fontWeight: FontWeight.w800,
-          color: C.textPrimary, letterSpacing: -0.5)),
-      const SizedBox(height: 3),
+          color: C.primary600, letterSpacing: -0.5)),
+      const SizedBox(height: 4),
       Text(label,
-        style: GoogleFonts.inter(fontSize: 11, color: C.textTertiary),
+        style: GoogleFonts.inter(fontSize: 12, color: C.textTertiary, fontWeight: FontWeight.w500),
         textAlign: TextAlign.center),
     ]),
   );
@@ -259,7 +259,7 @@ class _StatPill extends StatelessWidget {
 
 class _Divider extends StatelessWidget {
   @override
-  Widget build(BuildContext context) => Container(width: 0.5, height: 32, color: C.surf3);
+  Widget build(BuildContext context) => Container(width: 1.0, height: 32, color: C.surf3.withValues(alpha: 0.5));
 }
 
 // ─── Section title ────────────────────────────────────────────────────────────
@@ -270,11 +270,11 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
     child: Text(label.toUpperCase(),
       style: GoogleFonts.inter(
-        fontSize: 11, fontWeight: FontWeight.w700,
-        color: C.textTertiary, letterSpacing: 0.8)),
+        fontSize: 12, fontWeight: FontWeight.w800,
+        color: C.primary600, letterSpacing: 1.2)),
   );
 }
 
@@ -288,9 +288,12 @@ class _SettingsGroup extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     margin: const EdgeInsets.symmetric(horizontal: 16),
     decoration: BoxDecoration(
-      color: C.surf0,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: C.surf3, width: 0.5),
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: C.surf3.withValues(alpha: 0.5), width: 1.0),
+      boxShadow: [
+        BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4)),
+      ],
     ),
     child: Column(children: List.generate(tiles.length, (i) {
       final tile = tiles[i];
@@ -298,8 +301,8 @@ class _SettingsGroup extends StatelessWidget {
         tile,
         if (i < tiles.length - 1)
           Padding(
-            padding: const EdgeInsets.only(left: 54),
-            child: Divider(color: C.surf3, height: 0.5, thickness: 0.5),
+            padding: const EdgeInsets.only(left: 60),
+            child: Divider(color: C.surf3.withValues(alpha: 0.5), height: 1.0, thickness: 1.0),
           ),
       ]);
     })),
@@ -321,33 +324,34 @@ class _Tile extends StatelessWidget {
     color: Colors.transparent,
     child: InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      splashColor: C.teal50,
+      borderRadius: BorderRadius.circular(24),
+      splashColor: C.primary100.withValues(alpha: 0.5),
       highlightColor: Colors.transparent,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(children: [
           Container(
-            width: 34, height: 34,
+            width: 40, height: 40,
             decoration: BoxDecoration(
-              color: C.surf1,
-              borderRadius: BorderRadius.circular(10),
+              color: C.primary100,
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, size: 18, color: C.textSecondary),
+            child: Icon(icon, size: 20, color: C.primary600),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label,
               style: GoogleFonts.inter(
-                fontSize: 14, fontWeight: FontWeight.w500, color: C.textPrimary)),
-            if (subtitle != null) ...[ const SizedBox(height: 2),
+                fontSize: 15, fontWeight: FontWeight.w700, color: C.textPrimary)),
+            if (subtitle != null) ...[ const SizedBox(height: 3),
               Text(subtitle!,
-                style: GoogleFonts.inter(fontSize: 12, color: C.textTertiary)),
+                style: GoogleFonts.inter(fontSize: 13, color: C.textTertiary, fontWeight: FontWeight.w500)),
             ],
           ])),
-          const Icon(Icons.chevron_right_rounded, size: 18, color: C.textTertiary),
+          const Icon(Icons.chevron_right_rounded, size: 20, color: C.textTertiary),
         ]),
       ),
     ),
   );
 }
+

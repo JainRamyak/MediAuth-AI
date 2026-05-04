@@ -16,77 +16,62 @@ abstract final class AppTheme {
 
       colorScheme: const ColorScheme(
         brightness: Brightness.light,
-        primary:             C.teal500,
+        primary:             C.primary500,
         onPrimary:           C.white,
-        primaryContainer:    C.teal50,
-        onPrimaryContainer:  C.teal700,
-        secondary:           C.navy500,
+        primaryContainer:    C.primary50,
+        onPrimaryContainer:  C.primary700,
+        secondary:           C.primary400,
         onSecondary:         C.white,
         surface:             C.surf0,
         onSurface:           C.textPrimary,
-        error:               C.red500,
+        error:               C.red,
         onError:             C.white,
       ),
 
       // ── Typography ────────────────────────────────────────────────────────
       textTheme: TextTheme(
-        // stat numbers: Outfit 28/800
-        displayLarge: GoogleFonts.outfit(
+        displayLarge: GoogleFonts.inter(
           fontSize: 28, fontWeight: FontWeight.w800,
           color: C.textPrimary, letterSpacing: -1),
-        // welcome/hero heading: Outfit 22/800
-        displayMedium: GoogleFonts.outfit(
+        displayMedium: GoogleFonts.inter(
           fontSize: 22, fontWeight: FontWeight.w800,
           color: C.textPrimary, letterSpacing: -0.5),
-        // section heading: Outfit 19/700
-        displaySmall: GoogleFonts.outfit(
+        displaySmall: GoogleFonts.inter(
           fontSize: 19, fontWeight: FontWeight.w700,
           color: C.textPrimary, letterSpacing: -0.4),
-        // app bar name: Outfit 18/700
-        headlineLarge: GoogleFonts.outfit(
+        headlineLarge: GoogleFonts.inter(
           fontSize: 18, fontWeight: FontWeight.w700,
           color: C.textPrimary, letterSpacing: -0.2),
-        // step/display title: Outfit 20/500
-        headlineMedium: GoogleFonts.outfit(
+        headlineMedium: GoogleFonts.inter(
           fontSize: 20, fontWeight: FontWeight.w500,
           color: C.textPrimary, letterSpacing: -0.2, height: 1.2),
-        // card titles: Inter 16/700
         headlineSmall: GoogleFonts.inter(
           fontSize: 16, fontWeight: FontWeight.w700,
           color: C.textPrimary),
-        // primary button label: Inter 15/700
         titleLarge: GoogleFonts.inter(
           fontSize: 15, fontWeight: FontWeight.w700,
           color: C.textPrimary),
-        // button label / step title: Inter 13/700
         titleMedium: GoogleFonts.inter(
           fontSize: 13, fontWeight: FontWeight.w700,
           color: C.textPrimary),
-        // field label / secondary text: Inter 13/500
         titleSmall: GoogleFonts.inter(
           fontSize: 13, fontWeight: FontWeight.w500,
           color: C.textSecondary),
-        // body text: Inter 15/400
         bodyLarge: GoogleFonts.inter(
           fontSize: 15, fontWeight: FontWeight.w400,
           color: C.textPrimary, height: 1.5),
-        // body/card treatment name: Inter 14/600
         bodyMedium: GoogleFonts.inter(
           fontSize: 14, fontWeight: FontWeight.w600,
           color: C.textPrimary),
-        // small body / subtitle: Inter 12/400
         bodySmall: GoogleFonts.inter(
           fontSize: 12, fontWeight: FontWeight.w400,
           color: C.textSecondary, height: 1.5),
-        // stat/pill labels: Inter 11/600
         labelLarge: GoogleFonts.inter(
           fontSize: 11, fontWeight: FontWeight.w600,
           color: C.textTertiary, letterSpacing: 0.1),
-        // filter pills: Inter 12/600
         labelMedium: GoogleFonts.inter(
           fontSize: 12, fontWeight: FontWeight.w600,
           color: C.textSecondary),
-        // hints / step label uppercase: Inter 10/400
         labelSmall: GoogleFonts.inter(
           fontSize: 10, fontWeight: FontWeight.w400,
           color: C.textTertiary, letterSpacing: 0.2),
@@ -96,21 +81,21 @@ abstract final class AppTheme {
       appBarTheme: AppBarTheme(
         elevation: 0,
         scrolledUnderElevation: 0,
-        backgroundColor: C.navy800,
+        backgroundColor: C.primary500,
         foregroundColor: Colors.white,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.outfit(
+        titleTextStyle: GoogleFonts.inter(
           fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
         iconTheme: const IconThemeData(color: Colors.white, size: 22),
         surfaceTintColor: Colors.transparent,
       ),
 
-      // ── Cards — zero elevation ────────────────────────────────────────────
+      // ── Cards — very rounded ──────────────────────────────────────────────
       cardTheme: CardThemeData(
         elevation: 0,
         color: C.surf0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(24),
           side: BorderSide(color: C.surf3.withValues(alpha: 0.5), width: 0.5),
         ),
         margin: EdgeInsets.zero,
@@ -122,53 +107,53 @@ abstract final class AppTheme {
         elevation: 0,
         backgroundColor: C.surf0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)))),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)))),
 
-      // ── Input fields — spec: 52px height, radius 10, surf2 fill ──────────
+      // ── Input fields ──────────────────────────────────────────────────────
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: C.surf2,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: C.surf3, width: 0.5),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: C.surf3, width: 0.5),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: C.teal500, width: 1),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: C.primary500, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: C.red500, width: 1),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: C.red, width: 1),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: C.red500, width: 1.5),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: C.red, width: 1.5),
         ),
         labelStyle: GoogleFonts.inter(
           fontSize: 13, color: C.textSecondary, fontWeight: FontWeight.w500),
         hintStyle: GoogleFonts.inter(
           fontSize: 14, color: C.textTertiary, fontWeight: FontWeight.w400),
-        errorStyle: GoogleFonts.inter(fontSize: 12, color: C.red700),
+        errorStyle: GoogleFonts.inter(fontSize: 12, color: C.red),
         prefixIconColor: C.textTertiary,
       ),
 
-      // ── Elevated buttons — spec: 52px, radius 14 ─────────────────────────
+      // ── Elevated buttons ──────────────────────────────────────────────────
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: C.teal500,
+          backgroundColor: C.primary500,
           foregroundColor: Colors.white,
-          disabledBackgroundColor: C.teal500.withValues(alpha: 0.55),
+          disabledBackgroundColor: C.primary500.withValues(alpha: 0.55),
           disabledForegroundColor: Colors.white,
           elevation: 0,
           shadowColor: Colors.transparent,
-          minimumSize: const Size(double.infinity, 52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          textStyle: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700),
+          minimumSize: const Size(double.infinity, 56),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),
 
@@ -178,27 +163,27 @@ abstract final class AppTheme {
           foregroundColor: C.textPrimary,
           backgroundColor: C.surf0,
           elevation: 0,
-          minimumSize: const Size(double.infinity, 52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          minimumSize: const Size(double.infinity, 56),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           side: const BorderSide(color: C.surf3, width: 1),
-          textStyle: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),
+          textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
 
-      // ── Chips — spec: 30px, radius 8, teal50 bg ──────────────────────────
+      // ── Chips ─────────────────────────────────────────────────────────────
       chipTheme: ChipThemeData(
         backgroundColor: C.surf2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
         labelStyle: GoogleFonts.inter(fontSize: 12, color: C.textSecondary),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        side: const BorderSide(color: C.surf3, width: 0.5),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        side: BorderSide.none,
       ),
 
       // ── Bottom nav ────────────────────────────────────────────────────────
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: C.surf0,
         elevation: 0,
-        selectedItemColor: C.teal500,
+        selectedItemColor: C.primary500,
         unselectedItemColor: C.textTertiary,
         selectedLabelStyle: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600),
         unselectedLabelStyle: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w400),
@@ -211,21 +196,17 @@ abstract final class AppTheme {
 
       // ── FAB ───────────────────────────────────────────────────────────────
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: C.teal500,
+        backgroundColor: C.primary500,
         foregroundColor: Colors.white,
         elevation: 4,
-        focusElevation: 4,
-        hoverElevation: 6,
-        highlightElevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
       ),
     );
   }
 
-  // ── DM Mono text style (editor panes / code output) ──────────────────────
   static TextStyle monoStyle({
     double size = 13,
-    Color color = C.teal400,
+    Color color = C.primary400,
     FontWeight weight = FontWeight.w400,
     double? height,
   }) => GoogleFonts.dmMono(
@@ -235,3 +216,4 @@ abstract final class AppTheme {
     height: height ?? 1.55,
   );
 }
+

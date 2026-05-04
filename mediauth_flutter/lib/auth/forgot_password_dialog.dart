@@ -4,6 +4,7 @@
 /// Bottom-sheet dialog for password reset emails via Supabase.
 /// Call: showForgotPasswordSheet(context)
 /// ---------------------------------------------------------------------------
+library;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';

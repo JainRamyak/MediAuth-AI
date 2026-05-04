@@ -81,9 +81,9 @@ class StepHeader extends StatelessWidget {
               duration: const Duration(milliseconds: 350),
               curve: Curves.easeInOut,
               margin: EdgeInsets.only(right: i < total - 1 ? 4 : 0),
-              height: 3,
+              height: 4,
               decoration: BoxDecoration(
-                color: filled ? C.teal500 : C.surf3,
+                color: filled ? C.primary500 : C.surf3,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -93,10 +93,10 @@ class StepHeader extends StatelessWidget {
       const SizedBox(height: 14),
       Text(
         'Step $current of $total',
-        style: _inter(11, FontWeight.w600, C.teal600, spacing: 0.5),
+        style: _inter(11, FontWeight.w700, C.primary600, spacing: 0.5),
       ),
       const SizedBox(height: 3),
-      Text(title, style: Theme.of(context).textTheme.headlineMedium),
+      Text(title, style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: C.textPrimary)),
     ],
   );
 }
@@ -110,12 +110,12 @@ class SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-    Icon(icon, size: 15, color: C.teal500),
-    const SizedBox(width: 7),
-    Text(label, style: _outfit(13, FontWeight.w600, C.teal700, spacing: -0.2)),
-    const SizedBox(width: 10),
+    Icon(icon, size: 16, color: C.primary500),
+    const SizedBox(width: 8),
+    Text(label, style: _inter(14, FontWeight.w700, C.textPrimary, spacing: -0.2)),
+    const SizedBox(width: 12),
     Expanded(
-      child: Container(height: 0.5, color: C.surf3.withValues(alpha: 0.6)),
+      child: Container(height: 1.0, color: C.surf3.withValues(alpha: 0.5)),
     ),
   ]);
 }
@@ -133,23 +133,26 @@ class MediCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget card = ClipRRect(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(24),
       child: Stack(
         children: [
           Container(
             width: double.infinity,
-            padding: padding ?? const EdgeInsets.all(18),
+            padding: padding ?? const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: C.surf0,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: C.surf3.withValues(alpha: 0.6), width: 0.5),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: C.surf3.withValues(alpha: 0.6), width: 1.0),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 15, offset: const Offset(0, 8)),
+              ],
             ),
             child: child,
           ),
           if (accentColor != null)
             Positioned(
               left: 0, top: 0, bottom: 0,
-              child: Container(width: 3, color: accentColor),
+              child: Container(width: 4, color: accentColor),
             ),
         ],
       ),
@@ -160,8 +163,8 @@ class MediCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          splashColor: C.teal50.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(24),
+          splashColor: C.primary100.withValues(alpha: 0.4),
           highlightColor: Colors.transparent,
           child: card,
         ),
@@ -317,7 +320,7 @@ class _PrimaryButtonState extends State<PrimaryButton> with SingleTickerProvider
   void initState() {
     super.initState();
     _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
-    _scale = Tween<double>(begin: 1.0, end: 0.95).animate(
+    _scale = Tween<double>(begin: 1.0, end: 0.96).animate(
       CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
     );
   }
@@ -336,22 +339,22 @@ class _PrimaryButtonState extends State<PrimaryButton> with SingleTickerProvider
     child: ScaleTransition(
       scale: _scale,
       child: SizedBox(
-        height: 52, width: double.infinity,
+        height: 56, width: double.infinity,
         child: ElevatedButton(
           onPressed: widget.loading ? null : widget.onPressed,
           style: ElevatedButton.styleFrom(
-            backgroundColor: C.teal500,
-            disabledBackgroundColor: C.teal500.withValues(alpha: 0.55),
+            backgroundColor: C.primary500,
+            disabledBackgroundColor: C.primary500.withValues(alpha: 0.55),
             elevation: 0,
             shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           ),
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
             child: widget.loading
                 ? const SizedBox(
                     key: ValueKey('loader'),
-                    width: 20, height: 20,
+                    width: 22, height: 22,
                     child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                   )
                 : Row(
@@ -359,10 +362,10 @@ class _PrimaryButtonState extends State<PrimaryButton> with SingleTickerProvider
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       if (widget.icon != null) ...[
-                        Icon(widget.icon, size: 17, color: Colors.white),
-                        const SizedBox(width: 8),
+                        Icon(widget.icon, size: 20, color: Colors.white),
+                        const SizedBox(width: 10),
                       ],
-                      Text(widget.label, style: _inter(15, FontWeight.w700, Colors.white)),
+                      Text(widget.label, style: _inter(16, FontWeight.w800, Colors.white)),
                     ],
                   ),
           ),
