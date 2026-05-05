@@ -154,7 +154,7 @@ Agent 5 re-submits (Appeal Level 1)
 
 #### Feature 1 — Patient Intake & Authorization
 
-Hospital staff enter a patient's medical history and requested treatment via the Flutter app. Agent 1 transforms the free-text input into a structured patient profile. The full 7-agent pipeline fires automatically.
+User enter his medical history and requested treatment via the Flutter app. Agent 1 transforms the free-text input into a structured patient profile. The full 7-agent pipeline fires automatically.
 
 #### Feature 2 — Clinical Code Assignment
 
