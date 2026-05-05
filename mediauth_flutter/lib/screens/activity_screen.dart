@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import '../theme/colors.dart';
 import '../widgets/shared_widgets.dart';
-import 's03_dashboard.dart';
+import '../api/api_service.dart';
 
-// ── Activity Screen ───────────────────────────────────────────────────────────
+// ── Activity (History) Screen ─────────────────────────────────────────────────
+// Primary data source: GET /api/v1/authorize (real database)
+// Fallback: SharedPreferences cache (if backend is offline)
 
 class ActivityScreen extends StatefulWidget {
-  final void Function(AuthRequest) onRequestTap;
+  final void Function(Map<String, dynamic> result) onRequestTap;
   const ActivityScreen({super.key, required this.onRequestTap});
 
   @override
@@ -16,379 +17,300 @@ class ActivityScreen extends StatefulWidget {
 }
 
 class _ActivityScreenState extends State<ActivityScreen> {
-  AuthStatus? _filter;
-  bool _searchVisible = false;
-  String _query = '';
-  final _searchCtl = TextEditingController();
+  List<Map<String, dynamic>> _all = [];
+  bool _loading = true;
+  String _filter = 'All';
+  final _searchCtrl = TextEditingController();
 
-  static final _all = [...mockRequests].reversed.toList();
+  static const _filters = ['All', 'Approved', 'Denied', 'Appealing', 'Pending'];
 
-  List<AuthRequest> get _filtered {
-    var items = _filter == null
-      ? _all
-      : _all.where((r) => r.status == _filter).toList();
-    if (_query.isNotEmpty) {
-      items = items.where((r) =>
-        r.providerName.toLowerCase().contains(_query.toLowerCase()) ||
-        r.treatment.toLowerCase().contains(_query.toLowerCase())).toList();
-    }
-    return items;
-  }
-
-  // Group by date bucket
-  Map<String, List<AuthRequest>> get _grouped {
-    final now = DateTime.now();
-    final map = <String, List<AuthRequest>>{};
-    for (final r in _filtered) {
-      final diff = now.difference(r.timestamp);
-      String key;
-      if (diff.inHours < 24) { key = 'Today'; }
-      else if (diff.inDays < 2) { key = 'Yesterday'; }
-      else if (diff.inDays < 7) { key = 'This Week'; }
-      else { key = DateFormat.yMMM().format(r.timestamp); }
-      map.putIfAbsent(key, () => []).add(r);
-    }
-    return map;
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(() => setState(() {}));
+    _load();
   }
 
   @override
-  void dispose() { _searchCtl.dispose(); super.dispose(); }
+  void dispose() { _searchCtrl.dispose(); super.dispose(); }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; });
+
+    // ── Try backend first ────────────────────────────────────────────────────
+    try {
+      final items = await ApiService.fetchHistory(limit: 50);
+      final normalized = items.map((r) => _normalizeBackendItem(r)).toList();
+      if (mounted) setState(() { _all = normalized; _loading = false; });
+      return;
+    } catch (_) {
+      if (mounted) setState(() { _all = []; _loading = false; });
+    }
+  }
+
+  /// Normalize the backend's snake_case response into the format expected by UI.
+  Map<String, dynamic> _normalizeBackendItem(Map<String, dynamic> r) {
+    return {
+      'auth_request_id':     r['auth_request_id'],
+      'workflow_status':     r['workflow_status'],
+      'appeal_level':        r['appeal_level'],
+      'justification_letter': r['justification_letter'],
+      'denial_reason':       r['denial_reason'],
+      'created_at':          r['created_at'],
+      // Patient fields joined from DB
+      'insurer':             r['insurer'],
+      'policy_number':       r['policy_number'],
+      'patient_name':        r['patient_name'],
+      // Treatment field isn't stored in DB yet — use a descriptive fallback
+      'requested_treatment': _treatmentLabel(r),
+    };
+  }
+
+  String _treatmentLabel(Map<String, dynamic> r) {
+    final status = (r['workflow_status'] ?? '').toString();
+    final patient = (r['patient_name'] ?? '').toString();
+    if (patient.isNotEmpty) return 'Authorization — $patient';
+    return 'Authorization Request ($status)';
+  }
+
+  List<Map<String, dynamic>> get _filtered {
+    var list = _all;
+    if (_filter != 'All') {
+      list = list.where((r) =>
+          (r['workflow_status'] ?? '').toString().toLowerCase() ==
+          _filter.toLowerCase()).toList();
+    }
+    final q = _searchCtrl.text.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      list = list.where((r) {
+        final t = (r['requested_treatment'] ?? '').toString().toLowerCase();
+        final i = (r['insurer']          ?? '').toString().toLowerCase();
+        final n = (r['patient_name']     ?? '').toString().toLowerCase();
+        return t.contains(q) || i.contains(q) || n.contains(q);
+      }).toList();
+    }
+    return list;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final grouped = _grouped;
-
+    final filtered = _filtered;
     return Scaffold(
       backgroundColor: C.surf1,
       appBar: AppBar(
-        title: Text('Activity',
+        backgroundColor: C.primary500,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        title: Text('Activity History',
           style: GoogleFonts.inter(
-            fontSize: 18, fontWeight: FontWeight.w700,
-            color: C.textPrimary)),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _searchVisible ? Icons.close_rounded : Icons.search_rounded),
-            onPressed: () {
-              setState(() {
-                _searchVisible = !_searchVisible;
-                if (!_searchVisible) {
-                  _query = '';
-                  _searchCtl.clear();
-                }
-              });
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Search bar ────────────────────────────────────────────────────
-          AnimatedSize(
-            duration: const Duration(milliseconds: 220),
-            child: _searchVisible
-              ? Container(
-                  color: C.surf0,
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: TextField(
-                    controller: _searchCtl,
-                    autofocus: true,
-                    onChanged: (v) => setState(() => _query = v),
-                    decoration: InputDecoration(
-                      hintText: 'Search by provider or treatment…',
-                      prefixIcon: const Icon(
-                        Icons.search_rounded, size: 20),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                    ),
-                  ),
-                )
-              : const SizedBox.shrink(),
-          ),
-
-          // ── Sticky filter pills ───────────────────────────────────────────
-          Container(
-            color: C.surf0,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Row(
-                children: [
-                  _FilterPill(null, 'All', _filter,
-                    (v) => setState(() => _filter = v)),
-                  const SizedBox(width: 6),
-                  ...AuthStatus.values.map((s) => Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: _FilterPill(s, _statusLabel(s), _filter,
-                      (v) => setState(() => _filter = v)),
-                  )),
-                ],
+            fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(64),
+          child: Container(
+            color: C.primary500,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Search by patient, insurer or treatment…',
+                hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.6)),
+                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Colors.white70),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none),
+                filled: true, fillColor: Colors.white.withValues(alpha: 0.15),
+                isDense: true,
               ),
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
             ),
           ),
-          Container(height: 0.5, color: C.surf3),
-
-          // ── Timeline list ─────────────────────────────────────────────────
-          Expanded(
-            child: _filtered.isEmpty
-              ? EmptyStateView(
-                  icon: Icons.inbox_outlined,
-                  title: 'No matching requests',
-                  subtitle: 'Try adjusting your filter or search.',
-                  actionLabel: 'Clear Filter',
-                  onAction: () => setState(() {
-                    _filter = null;
-                    _query = '';
-                    _searchCtl.clear();
-                  }),
-                )
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                  children: [
-                    for (final entry in grouped.entries) ...[
-                      // Date section header
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Row(children: [
-                          Text(entry.key,
-                            style: GoogleFonts.inter(
-                              fontSize: 12, fontWeight: FontWeight.w700,
-                              color: C.textTertiary,
-                              letterSpacing: 0.5)),
-                          const SizedBox(width: 8),
-                          Expanded(child: Container(height: 0.5, color: C.surf3)),
-                          const SizedBox(width: 8),
-                          Text('${entry.value.length}',
-                            style: GoogleFonts.inter(
-                              fontSize: 11, color: C.textTertiary)),
-                        ]),
-                      ),
-                      // Items in this group
-                      ...entry.value.asMap().entries.map((e) {
-                        final i = e.key;
-                        final req = e.value;
-                        final isLast = i == entry.value.length - 1;
-                        return Stack(
-                          children: [
-                            if (!isLast)
-                              Positioned(
-                                left: 19,
-                                top: 48,
-                                bottom: -4,
-                                child: Container(
-                                  width: 1.5, color: C.surf3),
-                              ),
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _HistoryTile(
-                                request: req,
-                                onTap: () => widget.onRequestTap(req),
-                              ),
-                            ),
-                          ],
-                        );
-                      }),
-                      const SizedBox(height: 8),
-                    ],
-                  ],
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-String _statusLabel(AuthStatus s) => switch (s) {
-  AuthStatus.approved  => 'Approved',
-  AuthStatus.pending   => 'Pending',
-  AuthStatus.denied    => 'Denied',
-  AuthStatus.appealing => 'Appealing',
-  AuthStatus.submitted => 'Submitted',
-};
-
-// ── Inline filter pill ────────────────────────────────────────────────────────
-
-class _FilterPill extends StatelessWidget {
-  final AuthStatus? value;
-  final String label;
-  final AuthStatus? current;
-  final ValueChanged<AuthStatus?> onTap;
-
-  const _FilterPill(this.value, this.label, this.current, this.onTap);
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = value == current;
-    return GestureDetector(
-      onTap: () => onTap(value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected ? C.teal500 : C.surf1,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? C.teal500 : C.surf3, width: 1),
         ),
-        child: Text(label,
-          style: GoogleFonts.inter(
-            fontSize: 13, fontWeight: FontWeight.w600,
-            color: selected ? C.white : C.textSecondary)),
       ),
-    );
-  }
-}
+      body: RefreshIndicator(
+        onRefresh: _load,
+        color: C.primary500,
+        child: CustomScrollView(
+          slivers: [
 
-// ── History Tile ──────────────────────────────────────────────────────────────
-
-class _HistoryTile extends StatefulWidget {
-  final AuthRequest request;
-  final VoidCallback onTap;
-  const _HistoryTile({required this.request, required this.onTap});
-
-  @override
-  State<_HistoryTile> createState() => _HistoryTileState();
-}
-
-class _HistoryTileState extends State<_HistoryTile> {
-  bool _expanded = false;
-
-  Color get _nodeColor => switch (widget.request.status) {
-    AuthStatus.approved  => C.green500,
-    AuthStatus.pending   => C.amber500,
-    AuthStatus.denied    => C.red500,
-    AuthStatus.appealing => C.violet500,
-    AuthStatus.submitted => C.blue500,
-  };
-  Color get _nodeBg => switch (widget.request.status) {
-    AuthStatus.approved  => C.green50,
-    AuthStatus.pending   => C.amber50,
-    AuthStatus.denied    => C.red50,
-    AuthStatus.appealing => C.violet50,
-    AuthStatus.submitted => C.blue50,
-  };
-  IconData get _nodeIcon => switch (widget.request.status) {
-    AuthStatus.approved  => Icons.check_circle_outline_rounded,
-    AuthStatus.pending   => Icons.hourglass_empty_rounded,
-    AuthStatus.denied    => Icons.cancel_outlined,
-    AuthStatus.appealing => Icons.gavel_rounded,
-    AuthStatus.submitted => Icons.send_outlined,
-  };
-
-  String _elapsed(DateTime dt) {
-    final d = DateTime.now().difference(dt);
-    if (d.inMinutes < 60) return '${d.inMinutes}m ago';
-    if (d.inHours < 24)  return '${d.inHours}h ago';
-    return '${d.inDays}d ago';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Timeline node
-        Container(
-          width: 38, height: 38,
-          decoration: BoxDecoration(
-            color: _nodeBg, shape: BoxShape.circle,
-            border: Border.all(color: _nodeColor.withValues(alpha: 0.4))),
-          child: Icon(_nodeIcon, size: 17, color: _nodeColor),
-        ),
-        const SizedBox(width: 14),
-
-        // Card
-        Expanded(
-          child: GestureDetector(
-            onTap: () {
-              setState(() => _expanded = !_expanded);
-              widget.onTap();
-            },
-            child: Stack(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: C.surf0,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: C.surf3, width: 0.5)),
-                  child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(widget.request.providerName,
-                          style: GoogleFonts.inter(
-                            fontSize: 14, fontWeight: FontWeight.w600,
-                            color: C.textPrimary),
-                          maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      Text(_elapsed(widget.request.timestamp),
-                        style: GoogleFonts.inter(
-                          fontSize: 11, color: C.textTertiary)),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(widget.request.treatment,
-                    style: GoogleFonts.inter(
-                      fontSize: 13, color: C.textSecondary),
-                    maxLines: _expanded ? null : 2,
-                    overflow: _expanded ? null : TextOverflow.ellipsis),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    StatusPill(widget.request.status),
-                    const Spacer(),
-                    Text(widget.request.id,
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 10, color: C.textTertiary)),
-                  ]),
-                  // Expanded detail
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 220),
-                    child: _expanded
-                      ? Padding(
-                          padding: const EdgeInsets.only(top: 10),
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: C.surf1,
-                              borderRadius: BorderRadius.circular(8)),
-                            child: Row(children: [
-                              const Icon(Icons.business_outlined,
-                                size: 13, color: C.textTertiary),
-                              const SizedBox(width: 7),
-                              Text(widget.request.insurer,
-                                style: GoogleFonts.inter(
-                                  fontSize: 12, color: C.textSecondary)),
-                            ]),
+            // ── Filter chips ───────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                child: SizedBox(
+                  height: 36,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: _filters.map((f) {
+                      final active = _filter == f;
+                      return GestureDetector(
+                        onTap: () => setState(() => _filter = f),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: active ? C.primary500 : Colors.white,
+                            borderRadius: BorderRadius.circular(100),
+                            border: Border.all(
+                              color: active ? C.primary500 : C.surf3, width: 1.0)),
+                          child: Center(
+                            child: Text(f,
+                              style: GoogleFonts.inter(
+                                fontSize: 13, fontWeight: FontWeight.w600,
+                                color: active ? Colors.white : C.textSecondary)),
                           ),
-                        )
-                      : const SizedBox.shrink(),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              left: 0, top: 0, bottom: 0,
-              child: Container(
-                width: 2.5,
-                decoration: BoxDecoration(
-                  color: _nodeColor,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(14),
-                    bottomLeft: Radius.circular(14),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
               ),
+            ),
+
+            // ── Content ────────────────────────────────────────────────────
+            if (_loading)
+              SliverList(
+                delegate: SliverChildBuilderDelegate((ctx, i) {
+                  return FadeSlide(
+                    delay: Duration(milliseconds: i * 100),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: const SkeletonShimmer(width: double.infinity, height: 110, borderRadius: 24),
+                    ),
+                  );
+                }, childCount: 4),
+              )
+            else if (filtered.isEmpty)
+              SliverFillRemaining(child: _EmptyHistory())
+            else
+              SliverList(
+                delegate: SliverChildBuilderDelegate((ctx, i) {
+                  final r = filtered[i];
+                  return FadeSlide(
+                    delay: Duration(milliseconds: i * 100),
+                    child: _HistoryCard(data: r, onTap: () => widget.onRequestTap(r))
+                  );
+                }, childCount: filtered.length),
+              ),
+
+            SliverToBoxAdapter(
+              child: SizedBox(height: MediaQuery.of(context).padding.bottom + 100),
             ),
           ],
         ),
       ),
-    ),
-  ],
-);
+    );
   }
+}
+
+// ── History Card ──────────────────────────────────────────────────────────────
+
+class _HistoryCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final VoidCallback onTap;
+  const _HistoryCard({required this.data, required this.onTap});
+
+  AuthStatus get _authStatus {
+    final s = (data['workflow_status'] ?? '').toString().toLowerCase();
+    if (s.contains('approved'))                      return AuthStatus.approved;
+    if (s.contains('denied'))                        return AuthStatus.denied;
+    if (s.contains('appeal') || s.contains('escalat')) return AuthStatus.appealing;
+    if (s.contains('submit'))                        return AuthStatus.submitted;
+    return AuthStatus.pending;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final treatment = data['requested_treatment']?.toString() ?? 'Authorization Request';
+    final insurer   = data['insurer']?.toString() ?? '';
+    final policy    = data['policy_number']?.toString() ?? '';
+    final rawId     = data['auth_request_id']?.toString() ?? '';
+    final shortId   = rawId.length > 8 ? rawId.substring(0, 8).toUpperCase() : rawId.toUpperCase();
+    final dateRaw   = data['created_at']?.toString() ?? '';
+    final date      = DateTime.tryParse(dateRaw) ?? DateTime.now();
+    final dateStr   = '${date.day.toString().padLeft(2,'0')}/'
+                      '${date.month.toString().padLeft(2,'0')}/'
+                      '${date.year}';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: C.surf3.withValues(alpha: 0.5), width: 1.0),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 5)),
+            ],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(
+                child: Text(treatment,
+                  style: GoogleFonts.inter(
+                    fontSize: 15, fontWeight: FontWeight.w700, color: C.textPrimary),
+                  maxLines: 2, overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 8),
+              StatusPill(_authStatus),
+            ]),
+            const SizedBox(height: 8),
+            Text(
+              [insurer, if (policy.isNotEmpty) 'Policy $policy']
+                  .where((e) => e.isNotEmpty).join('  ·  '),
+              style: GoogleFonts.inter(fontSize: 13, color: C.textSecondary, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 12),
+            Row(children: [
+              if (shortId.isNotEmpty) ...[
+                Text('ID $shortId',
+                  style: GoogleFonts.jetBrainsMono(fontSize: 11, color: C.textTertiary, fontWeight: FontWeight.w500)),
+                const SizedBox(width: 12),
+              ],
+              Text(dateStr,
+                style: GoogleFonts.inter(fontSize: 11, color: C.textTertiary, fontWeight: FontWeight.w500)),
+              const Spacer(),
+              Text('View Details →',
+                style: GoogleFonts.inter(
+                  fontSize: 12, color: C.primary600, fontWeight: FontWeight.w700)),
+            ]),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Empty ─────────────────────────────────────────────────────────────────────
+
+class _EmptyHistory extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Container(
+          width: 80, height: 80,
+          decoration: const BoxDecoration(color: C.surf2, shape: BoxShape.circle),
+          child: const Icon(Icons.history_rounded, size: 40, color: C.textTertiary),
+        ),
+        const SizedBox(height: 20),
+        Text('No history yet',
+          style: GoogleFonts.inter(
+            fontSize: 18, fontWeight: FontWeight.w700, color: C.textPrimary)),
+        const SizedBox(height: 8),
+        Text('Submitted authorization requests will appear here.',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(fontSize: 13, color: C.textSecondary)),
+      ]),
+    ),
+  );
 }

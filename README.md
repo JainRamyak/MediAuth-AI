@@ -1,3 +1,13 @@
+---
+title: MediAuth AI
+emoji: 🏥
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 🏥 MediAuth AI — Autonomous Insurance Authorization & Appeal Ecosystem
 
 > **A multi-agent AI system that autonomously manages the full insurance prior authorization lifecycle — from patient intake and clinical coding to writing justification letters and filing multi-level appeals — with zero manual paperwork.**
@@ -85,6 +95,13 @@ US healthcare prior authorization is a broken, manual process that costs clinici
 | **Preventable denials** | Over 70% of initial denials are due to administrative errors, not clinical unsuitability |
 | **No appeal follow-through** | Most denied claims go unappealed because the process is too time-consuming — even when reversal is likely |
 | **Disconnected systems** | Patient records, clinical codes, insurer policies, and justification letters live in 4–6 separate systems with no integration |
+| **LLM Core** | Claude Sonnet 4 (Anthropic API) |
+| **Agent Framework** | LangGraph (Python) |
+| **Backend API** | FastAPI (Python) |
+| **Frontend** | Flutter (Dart) |
+| **Database** | Supabase (PostgreSQL) |
+| **Vector Store** | ChromaDB |
+| **Deployment** | Render (Docker Blueprint) |
 
 ---
 

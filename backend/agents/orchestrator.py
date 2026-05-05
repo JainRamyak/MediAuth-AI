@@ -57,10 +57,19 @@ def log_agent(state: AuthState, agent_name: str, status: str, extra: dict = None
 
 def intake_node(state: AuthState) -> AuthState:
     print("[Orchestrator] ▶ Agent 1: Intake & History")
-    result = run_intake_agent(state["raw_patient_input"])
+    if state.get("patient_profile"):
+        result = state.get("patient_profile").copy()
+        result["agent"] = "intake"
+        result["status"] = "success"
+    else:
+        result = run_intake_agent(state["raw_patient_input"])
     state["patient_profile"] = result
     state["current_agent"] = "intake"
-    log_agent(state, "intake", result.get("status", "unknown"))
+    name = result.get("name", "Patient")
+    insurer = result.get("insurer_name", "insurer")
+    diag_count = len(result.get("diagnoses") or [])
+    log_agent(state, "intake", result.get("status", "unknown"),
+              {"detail": f"Profiled {name} · {insurer} · {diag_count} diagnoses extracted"})
     return state
 
 
@@ -72,7 +81,12 @@ def medical_analysis_node(state: AuthState) -> AuthState:
     )
     state["medical_analysis"] = result
     state["current_agent"] = "medical_analysis"
-    log_agent(state, "medical_analysis", result.get("status", "unknown"))
+    icd = result.get("icd10_codes") or []
+    cpt = result.get("cpt_codes") or []
+    icd_codes = ", ".join([c.get("code", str(c)) if isinstance(c, dict) else str(c) for c in icd[:3]])
+    cpt_codes = ", ".join([c.get("code", str(c)) if isinstance(c, dict) else str(c) for c in cpt[:2]])
+    log_agent(state, "medical_analysis", result.get("status", "unknown"),
+              {"detail": f"ICD-10: {icd_codes or 'none'} · CPT: {cpt_codes or 'none'}"})
     return state
 
 
@@ -82,7 +96,10 @@ def policy_node(state: AuthState) -> AuthState:
     result = run_policy_agent(state["patient_profile"], insurer)
     state["policy_check"] = result
     state["current_agent"] = "policy"
-    log_agent(state, "policy", result.get("status", "unknown"))
+    req = "Required" if result.get("pre_auth_required") else "Not required"
+    missing = len(result.get("missing_documentation") or [])
+    log_agent(state, "policy", result.get("status", "unknown"),
+              {"detail": f"Pre-auth {req} · {missing} missing doc(s) identified"})
     return state
 
 
@@ -98,8 +115,11 @@ def claims_validation_node(state: AuthState) -> AuthState:
     )
     state["claims_validation"] = result
     state["current_agent"] = "claims_validation"
-    log_agent(state, "claims_validation", result.get("status", "unknown"),
-              {"risk_score": result.get("risk_score")})
+    risk = result.get("risk_score", "UNKNOWN")
+    issues = len(result.get("issues_found") or [])
+    log_agent(state, "claims", result.get("status", "unknown"),
+              {"detail": f"Denial risk: {risk} · {issues} issue(s) found",
+               "risk_score": risk})
     return state
 
 
@@ -112,21 +132,34 @@ def justification_node(state: AuthState) -> AuthState:
     )
     state["justification_letter"] = letter
     state["current_agent"] = "justification"
-    log_agent(state, "justification", "success")
+    letter_str = letter.get("letter", "") if isinstance(letter, dict) else str(letter or "")
+    word_count = len(letter_str.split())
+    log_agent(state, "justification", "success",
+              {"detail": f"Prior-auth letter drafted · {word_count} words"})
     return state
 
 
 def submission_node(state: AuthState) -> AuthState:
     print("[Orchestrator] ▶ Agent 5: Submission & Monitor")
+    
+    # Submits the initial Justification Letter if it's the first run, 
+    # OR dynamically submits the Appeal Letter if entering an appeal loop.
+    document_to_submit = state.get("justification_letter")
+    if state.get("appeal_level", 0) > 0 and state.get("appeal_result"):
+        document_to_submit = state["appeal_result"].get("letter", document_to_submit)
+
     result = submit_authorization(
-        state["justification_letter"],
+        document_to_submit,
         state["patient_profile"]
     )
     state["submission_result"] = result
     state["workflow_status"] = result["decision"]
     state["current_agent"] = "submission"
+    ref = result.get("reference_number", "N/A")
+    decision = result["decision"].upper()
     log_agent(state, "submission", result["decision"],
-              {"reference": result.get("reference_number")})
+              {"detail": f"Decision: {decision} · Ref: {ref}",
+               "reference": ref})
     return state
 
 
@@ -146,7 +179,9 @@ def appeal_node(state: AuthState) -> AuthState:
     state["appeal_level"] = new_level
     state["workflow_status"] = "appealing"
     state["current_agent"] = "appeal"
-    log_agent(state, f"appeal_level_{new_level}", "submitted")
+    word_count = len(str(letter or "").split())
+    log_agent(state, "appeal", "submitted",
+              {"detail": f"Level {new_level} appeal letter filed · {word_count} words"})
     return state
 
 
@@ -164,10 +199,10 @@ def human_escalation_node(state: AuthState) -> AuthState:
 
 def route_after_submission(state: AuthState) -> str:
     """Decide what to do after getting insurer decision."""
-    decision = state.get("submission_result", {}).get("decision", "pending")
-    if decision == "approved":
+    decision = str(state.get("submission_result", {}).get("decision", "pending")).strip().lower()
+    if "approved" in decision:
         return "approved"
-    elif decision == "denied" and state.get("appeal_level", 0) < 3:
+    elif "denied" in decision and state.get("appeal_level", 0) < 3:
         return "appeal"
     else:
         return "escalate"
@@ -197,12 +232,18 @@ def build_graph():
     graph.add_node("appeal", appeal_node)
     graph.add_node("human_escalation", human_escalation_node)
 
-    # Linear flow: intake → medical → policy → claims (parallel track) → justification → submission
+    # Linear flow: intake → medical → policy & claims (parallel track) → justification → submission
     graph.set_entry_point("intake")
     graph.add_edge("intake", "medical_analysis")
+    
+    # Fan-out to calculate policy & claims in parallel
     graph.add_edge("medical_analysis", "policy")
-    graph.add_edge("policy", "claims_validation")   # claims runs right after policy
+    graph.add_edge("medical_analysis", "claims_validation")
+    
+    # Fan-in to justification
+    graph.add_edge("policy", "justification")
     graph.add_edge("claims_validation", "justification")
+    
     graph.add_edge("justification", "submission")
 
     # Conditional routing after submission decision
@@ -232,17 +273,51 @@ def build_graph():
     return graph.compile()
 
 
+def build_appeal_graph():
+    """Builds a customized LangGraph starting from the Appeal Node instead of Intake."""
+    graph = StateGraph(AuthState)
+
+    graph.add_node("appeal", appeal_node)
+    graph.add_node("submission", submission_node)
+    graph.add_node("human_escalation", human_escalation_node)
+
+    graph.set_entry_point("appeal")
+
+    graph.add_conditional_edges(
+        "appeal",
+        route_after_appeal,
+        {
+            "resubmit": "submission",
+            "escalate": "human_escalation"
+        }
+    )
+
+    graph.add_conditional_edges(
+        "submission",
+        route_after_submission,
+        {
+            "approved": END,
+            "appeal": "appeal",
+            "escalate": "human_escalation"
+        }
+    )
+
+    graph.add_edge("human_escalation", END)
+
+    return graph.compile()
+
 # ─────────────────────────────────────────────────────────────
 # Main entry point
 # ─────────────────────────────────────────────────────────────
 
-def run_authorization_workflow(patient_input: str, treatment: str) -> AuthState:
+def run_authorization_workflow(patient_input: str, treatment: str, structured_profile: dict = None) -> AuthState:
     """
     Main entry point. Call this from FastAPI routes.
     
     Args:
         patient_input: Free-text patient description
         treatment: Requested treatment or procedure
+        structured_profile: Pre-extracted patient structured dictionary
     
     Returns:
         Final AuthState dict with all agent outputs and audit trail
@@ -250,7 +325,7 @@ def run_authorization_workflow(patient_input: str, treatment: str) -> AuthState:
     initial_state = AuthState(
         raw_patient_input=patient_input,
         requested_treatment=treatment,
-        patient_profile=None,
+        patient_profile=structured_profile,
         medical_analysis=None,
         policy_check=None,
         justification_letter=None,
@@ -267,3 +342,11 @@ def run_authorization_workflow(patient_input: str, treatment: str) -> AuthState:
     app = build_graph()
     final_state = app.invoke(initial_state)
     return final_state
+
+def run_appeal_workflow(state: AuthState) -> AuthState:
+    """
+    Runs a dedicated appeal subgraph without running prior extraction agents.
+    Accepts an assembled past AuthState and injects it dynamically into the appeal flow.
+    """
+    app = build_appeal_graph()
+    return app.invoke(state)

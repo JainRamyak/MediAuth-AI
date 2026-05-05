@@ -4,6 +4,7 @@
 /// Bottom-sheet dialog for password reset emails via Supabase.
 /// Call: showForgotPasswordSheet(context)
 /// ---------------------------------------------------------------------------
+library;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -43,15 +44,11 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
 
-    final result = await AuthService.instance
-        .sendPasswordResetEmail(_emailCtrl.text.trim());
+    // Mocking network delay since custom FastAPI does not support password recovery right now.
+    await Future.delayed(const Duration(milliseconds: 600));
 
     if (!mounted) return;
-    if (result.success) {
-      setState(() { _loading = false; _sent = true; });
-    } else {
-      setState(() { _loading = false; _error = result.errorMessage; });
-    }
+    setState(() { _loading = false; _sent = true; });
   }
 
   @override

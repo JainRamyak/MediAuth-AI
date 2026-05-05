@@ -1,76 +1,79 @@
 import 'package:flutter/material.dart';
 
-// ── MediAuth AI Design Tokens ──────────────────────────────────────────────────
-// Organized by semantic intent per senior design spec.
+// ── MediAuth AI Design Tokens — V4 ───────────────────────────────────────────
+// All hex values match the V4 design spec exactly.
 // Zero box-shadows. Depth via surface color + border weight only.
 
 abstract final class C {
-  // Surface hierarchy (layering depth)
+  // ── Surfaces ─────────────────────────────────────────────────────────────
   static const surf0 = Color(0xFFFFFFFF); // cards, modals
-  static const surf1 = Color(0xFFF8FAFD); // scaffold
-  static const surf2 = Color(0xFFEFF3F8); // inputs, inactive zones
-  static const surf3 = Color(0xFFDDE4EE); // dividers, disabled
+  static const surf1 = Color(0xFFF8FAFC); // page background (slate 50)
+  static const surf2 = Color(0xFFF1F5F9); // input fill (slate 100)
+  static const surf3 = Color(0xFFE2E8F0); // borders (slate 200)
 
-  // Aliases for existing code compatibility
+  // Aliases
   static const white   = surf0;
-  static const surf50  = surf1;
-  static const surf100 = surf2;
-  static const surf200 = Color(0xFFCAD5E5);
-  static const surf300 = surf3;
+  static const border  = surf3;
 
-  // Brand primaries
-  static const teal50  = Color(0xFFE8FBF6); // teal-050
-  static const teal400 = Color(0xFF1AD9B2);
-  static const teal500 = Color(0xFF00C9A7); // primary
-  static const teal600 = Color(0xFF00B596);
-  static const teal700 = Color(0xFF009E84); // pressed states
-  static const teal800 = Color(0xFF007E68);
-  static const teal900 = Color(0xFF005F4F);
+  // ── Brand Primary (Blue) ──────────────────────────────────────────────────
+  static const primary50  = Color(0xFFEFF6FF);
+  static const primary100 = Color(0xFFDBEAFE);
+  static const primary400 = Color(0xFF60A5FA);
+  static const primary500 = Color(0xFF628DC5); // PRIMARY — matching images
+  static const primary600 = Color(0xFF2563EB);
+  static const primary700 = Color(0xFF1D4ED8);
+  static const primary800 = Color(0xFF1E3A8A);
 
-  // Text scale — contrast verified
-  static const textPrimary   = Color(0xFF0B1C3A); // 14.1:1 on white ✓
-  static const textSecondary = Color(0xFF4A6080); // 6.2:1 on white ✓
-  static const textTertiary  = Color(0xFF8097B1); // 3.4:1 (large text only) ✓
+  // ── Stats / Accent Colors ────────────────────────────────────────────────
+  static const purple = Color(0xFF7C3AED); // Submissions In Progress
+  static const green  = Color(0xFF10B981); // Approved
+  static const orange = Color(0xFFF59E0B); // Pending
+  static const red    = Color(0xFFEF4444); // Denied
 
-  // Aliases for existing code compatibility
-  static const navy900 = textPrimary;
-  static const navy800 = Color(0xFF112344);
-  static const navy700 = Color(0xFF1A3055);
-  static const navy500 = Color(0xFF2A4A6E);
-  static const navy50  = Color(0xFFEAF0FC);
+  // ── Text ─────────────────────────────────────────────────────────────────
+  static const textPrimary   = Color(0xFF0F172A); // slate 900
+  static const textSecondary = Color(0xFF475569); // slate 600
+  static const textTertiary  = Color(0xFF94A3B8); // slate 400
 
-  static const ink600 = textSecondary;
-  static const ink400 = textTertiary;
-  static const ink300 = Color(0xFF9AAEC5);
+  // ── Status: Approved (green) ──────────────────────────────────────────────
+  static const green50  = Color(0xFFECFDF5);
+  static const green500 = green;
+  static const green600 = Color(0xFF059669);
+  static const green700 = Color(0xFF047857);
+  static const green800 = Color(0xFF065F46);
 
-  // Border — universal
-  static const border = surf3;
+  // ── Status: Pending (amber) ───────────────────────────────────────────────
+  static const amber50  = Color(0xFFFFFBEB);
+  static const amber500 = orange;
+  static const amber600 = Color(0xFFD97706);
+  static const amber700 = Color(0xFFB45309);
+  static const amber800 = Color(0xFF92400E);
 
-  // Semantic state trios: fill / border / text
-  // Approved
-  static const green50  = Color(0xFFEAF7EF);
-  static const green500 = Color(0xFF27AE60);
-  static const green600 = Color(0xFF219150);
-  static const green700 = Color(0xFF1A7A42);
+  // ── Status: Denied (red) ─────────────────────────────────────────────────
+  static const red50  = Color(0xFFFEF2F2);
+  static const red500 = red;
+  static const red600 = Color(0xFFDC2626);
+  static const red700 = Color(0xFFB91C1C);
+  static const red800 = Color(0xFF991B1B);
 
-  // Denied
-  static const red50  = Color(0xFFFDEEEE);
-  static const red500 = Color(0xFFE8433A);
-  static const red700 = Color(0xFFB02B24);
+  // ── Stats: Purple ────────────────────────────────────────────────────────
+  static const violet50  = Color(0xFFF5F3FF);
+  static const violet500 = purple;
+  static const violet700 = Color(0xFF6D28D9);
+  static const violet800 = Color(0xFF5B21B6);
 
-  // Pending
-  static const amber50  = Color(0xFFFEF6E4);
-  static const amber500 = Color(0xFFF5A623);
-  static const amber600 = Color(0xFFD4901E);
-  static const amber700 = Color(0xFFB8751A);
-
-  // Appeal / Violet
-  static const violet50  = Color(0xFFEFECFF);
-  static const violet500 = Color(0xFF7B61FF);
-  static const violet700 = Color(0xFF5942CC);
-
-  // Submitted / Blue
-  static const blue50  = Color(0xFFEAF0FC);
-  static const blue500 = Color(0xFF3A7BD5);
-  static const blue700 = Color(0xFF2459A8);
+  // ── Legacy / Compatibility ───────────────────────────────────────────────
+  static const navy800 = primary500; 
+  static const navy900 = primary600;
+  static const light   = surf0;
+  static const teal50  = primary50;
+  static const teal400 = primary400;
+  static const teal500 = primary500;
+  static const teal600 = primary600;
+  static const teal700 = primary700;
+  
+  static const blue50  = primary50;
+  static const blue500 = primary500;
+  static const blue800 = primary800;
 }
+

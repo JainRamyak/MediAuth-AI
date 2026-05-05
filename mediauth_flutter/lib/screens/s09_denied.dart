@@ -1,517 +1,474 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/colors.dart';
 import '../widgets/shared_widgets.dart';
+import '../api/api_service.dart';
 
-// ── S09 Denied — real API data ────────────────────────────────────────────────
-// Displays data from POST /api/v1/authorize when workflow_status indicates denial.
-// Fields used:
-//   appeal_level        → shows current appeal level in banner + lifecycle stepper
-//   audit_trail         → extracts denial reason from last agent entry
-//   justification_letter → shown as appeal letter preview
+// ── Denied & Escalated Result Screen ─────────────────────────────────────────
+// Handles both 'denied' (with appeal info) and 'escalated' (max appeals reached)
 
 class DeniedScreen extends StatefulWidget {
-  final VoidCallback onAppeal;
-  final VoidCallback onDashboard;
-
-  /// Raw response map from POST /api/v1/authorize. Null-safe throughout.
-  final Map<String, dynamic>? apiResult;
+  final Map<String, dynamic> result;
+  final VoidCallback onNewRequest;
+  final VoidCallback onHome;
+  final void Function(Map<String, dynamic> result)? onApproved;
 
   const DeniedScreen({
     super.key,
-    required this.onAppeal,
-    required this.onDashboard,
-    this.apiResult,
+    required this.result,
+    required this.onNewRequest,
+    required this.onHome,
+    this.onApproved,
   });
 
   @override
   State<DeniedScreen> createState() => _DeniedScreenState();
 }
 
-class _DeniedScreenState extends State<DeniedScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctl;
-  late Animation<double> _fade;
-  bool _reasonExpanded = false;
-  bool _notifyEnabled = false;
-
-  // ── Derived data ──────────────────────────────────────────────────────────
-
-  int get _appealLevel =>
-      int.tryParse(widget.apiResult?['appeal_level']?.toString() ?? '0') ?? 0;
-
-  String get _workflowStatus =>
-      widget.apiResult?['workflow_status']?.toString() ?? 'denied';
-
-  List<dynamic> get _auditTrail =>
-      widget.apiResult?['audit_trail'] as List<dynamic>? ?? [];
-
-  String get _denialReason {
-    // Try to extract denial reason from audit trail
-    if (_auditTrail.isNotEmpty) {
-      for (final entry in _auditTrail.reversed) {
-        final e = entry as Map<String, dynamic>? ?? {};
-        final action = e['action']?.toString() ?? '';
-        final output = e['output_data'];
-        if (action.toLowerCase().contains('deni') ||
-            action.toLowerCase().contains('appeal')) {
-          if (output is Map) {
-            final reason = output['denial_reason']?.toString() ??
-                output['reason']?.toString() ??
-                output['decision_reason']?.toString() ?? '';
-            if (reason.isNotEmpty) return reason;
-          }
-          if (action.isNotEmpty) return action;
-        }
-      }
-      // Fallback: last audit trail entry action
-      final last = _auditTrail.last as Map<String, dynamic>? ?? {};
-      final lastAction = last['action']?.toString() ?? '';
-      if (lastAction.isNotEmpty) return lastAction;
-    }
-    // Generic fallback
-    return _workflowStatus.contains('escalat')
-        ? 'All 3 appeal levels exhausted. Human review required.'
-        : 'The insurer denied this authorization request. An appeal has been automatically filed.';
-  }
-
-
-
-  static const _steps = ['Submitted', 'Denied', 'L1 Appeal', 'L2 Review', 'Final'];
-
-  /// Which step index is currently active based on appeal level + status.
-  int get _activeStep {
-    if (_workflowStatus.contains('escalat')) return 4;
-    if (_appealLevel >= 2) return 3;
-    if (_appealLevel >= 1) return 2;
-    return 1; // Just denied, no appeal yet
-  }
+class _DeniedScreenState extends State<DeniedScreen> {
+  bool _letterExpanded = false;
+  bool _appealing = false;
+  late Map<String, dynamic> _result;
 
   @override
   void initState() {
     super.initState();
-    _ctl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 600));
-    _fade = CurvedAnimation(parent: _ctl, curve: Curves.easeOut);
-    _ctl.forward();
+    _result = Map.from(widget.result);
   }
 
-  @override
-  void dispose() {
-    _ctl.dispose();
-    super.dispose();
+  String get _status =>
+      _result['workflow_status']?.toString().toLowerCase() ?? '';
+
+  bool get _isEscalated => _status.contains('escalat') || _appealLevel >= 3;
+
+  int get _appealLevel => (_result['appeal_level'] as num?)?.toInt() ?? 0;
+
+  String get _letter =>
+      _result['justification_letter']?.toString() ?? '';
+
+  List<dynamic> get _trail =>
+      _result['audit_trail'] as List<dynamic>? ?? [];
+
+  /// Re-runs only the targeted Appeal node subgraph on the backend.
+  Future<void> _runAppeal() async {
+    final authId = _result['auth_request_id']?.toString() ?? '';
+    final patientText = _result['patient_text']?.toString() ?? '';
+    final treatText   = _result['requested_treatment']?.toString() ?? '';
+    if (authId.isEmpty) {
+      showMediToast(context, 'Cannot re-submit: original Auth ID missing.', kind: ToastKind.error);
+      return;
+    }
+    setState(() => _appealing = true);
+    try {
+      final res = await ApiService.submitAppeal(authId);
+      if (!mounted) return;
+      final newStatus = res['workflow_status']?.toString().toLowerCase() ?? '';
+      setState(() {
+        _result = {
+          ...res,
+          'patient_text':        patientText,
+          'requested_treatment': treatText,
+        };
+        _appealing = false;
+      });
+      if (newStatus.contains('approved')) {
+        widget.onApproved?.call(_result);
+      }
+      // If still denied the screen updates in place with new level / letter.
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _appealing = false);
+      showMediToast(context, 'Appeal failed: ${e.toString().replaceFirst('ApiException: ', '')}', kind: ToastKind.error);
+    }
+  }
+
+  String _agentName(String key) {
+    const names = {
+      'intake':           'Intake Agent',
+      'medical_analysis': 'Medical Analysis',
+      'policy':           'Policy Intelligence',
+      'justification':    'Justification Writer',
+      'submission':       'Submission Agent',
+      'appeal':           'Appeal Agent',
+      'claims':           'Claims Validator',
+    };
+    return names[key] ?? key.replaceAll('_', ' ');
+  }
+
+  Color _statusColor(String s) {
+    if (s.contains('success') || s.contains('approved')) return C.green700;
+    if (s.contains('denied'))                            return C.red700;
+    if (s.contains('submitted') || s.contains('appeal')) return C.violet700;
+    return C.textTertiary;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: C.surf1,
-      appBar: AppBar(
-        title: Text('Request Denied',
-            style: GoogleFonts.inter(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: C.textPrimary)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: widget.onDashboard,
-        ),
-      ),
-      body: FadeTransition(
-        opacity: _fade,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Hero banner ───────────────────────────────────────────────
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3CD),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                      color: C.amber500.withValues(alpha: 0.5), width: 1),
+      body: CustomScrollView(
+        slivers: [
+          // ── Hero ─────────────────────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: _isEscalated
+                      ? [C.amber600, C.amber700]
+                      : [C.red500, C.red700],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.warning_amber_rounded,
-                            color: C.amber600, size: 28),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text('DENIED — APPEAL AUTOMATICALLY FILED',
-                              style: GoogleFonts.inter(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
-                                  color: C.amber700,
-                                  letterSpacing: -0.2)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Your request was denied. Our AI has already written and filed an appeal for you.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(
-                          fontSize: 13, color: C.amber700, height: 1.4),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: C.amber500.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _appealLevel > 0
-                            ? 'Appeal Level: $_appealLevel of 3'
-                            : 'Appeal Level: 1 of 3',
-                        style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: C.amber700)),
-                    ),
-                  ],
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(32),
+                  bottomRight: Radius.circular(32),
                 ),
               ),
-              const SizedBox(height: 16),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+                  child: Column(children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded,
+                            color: Colors.white70),
+                        onPressed: widget.onHome,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: 96, height: 96,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2),
+                      ),
+                      child: Icon(
+                        _isEscalated
+                            ? Icons.report_problem_rounded
+                            : Icons.gavel_rounded,
+                        size: 44, color: Colors.white),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _isEscalated ? 'Escalated' : 'Denied — Appeal Filed',
+                      style: GoogleFonts.outfit(
+                        fontSize: 30, fontWeight: FontWeight.w800,
+                        color: Colors.white, letterSpacing: -0.8)),
+                    const SizedBox(height: 8),
+                    Text(
+                      _isEscalated
+                          ? 'Maximum appeals reached. Please contact your doctor.'
+                          : 'Our AI has already written and submitted your appeal.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 14, color: Colors.white70, height: 1.5)),
+                    if (_appealLevel > 0) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text('Appeal Level: $_appealLevel of 3',
+                          style: GoogleFonts.inter(
+                            fontSize: 13, color: Colors.white,
+                            fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ]),
+                ),
+              ),
+            ),
+          ),
 
-              // ── Denial reason — expandable ────────────────────────────────
-              GestureDetector(
-                onTap: () =>
-                    setState(() => _reasonExpanded = !_reasonExpanded),
-                child: MediCard(
-                  accentColor: C.red500,
-                  child: Column(
+          SliverPadding(
+            padding: const EdgeInsets.all(20),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                // ── Denial reason ─────────────────────────────────────────
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: C.red50,
+                        border: Border.all(color: C.red500.withValues(alpha: 0.25), width: 0.5),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
-                        const Icon(Icons.error_outline_rounded,
-                            size: 16, color: C.red500),
+                        const Icon(Icons.cancel_outlined, color: C.red500, size: 18),
                         const SizedBox(width: 8),
-                        Text('Why it was denied',
-                            style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: C.textPrimary)),
-                        const Spacer(),
-                        Icon(
-                          _reasonExpanded
-                              ? Icons.keyboard_arrow_up_rounded
-                              : Icons.keyboard_arrow_down_rounded,
-                          size: 20,
-                          color: C.textTertiary),
-                      ]),
-                      AnimatedSize(
-                        duration: const Duration(milliseconds: 250),
-                        child: _reasonExpanded
-                            ? Padding(
-                                padding: const EdgeInsets.only(top: 10),
-                                child: Text(_denialReason,
-                                    style: GoogleFonts.inter(
-                                        fontSize: 14,
-                                        color: C.textSecondary,
-                                        height: 1.6)),
-                              )
-                            : const SizedBox.shrink(),
-                      ),
-                      if (!_reasonExpanded) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          _denialReason,
+                        Text('Denial Reason',
                           style: GoogleFonts.inter(
-                              fontSize: 13, color: C.textSecondary),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                      ],
+                            fontSize: 13, fontWeight: FontWeight.w700,
+                            color: C.red700)),
+                      ]),
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.result['denial_reason']?.toString().isNotEmpty == true
+                            ? widget.result['denial_reason'].toString()
+                            : 'The request did not meet the insurer\'s current authorization criteria.',
+                        style: GoogleFonts.inter(
+                          fontSize: 13, color: C.red700, height: 1.5)),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
+                Positioned(left: 0, top: 0, bottom: 0, child: Container(width: 4, color: C.red500)),
+              ]),
+            ),
+            const SizedBox(height: 16),
 
-              // ── AI Appeal in Progress ─────────────────────────────────────
-              MediCard(
-                accentColor: C.teal500,
-                child: Row(children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: const BoxDecoration(
-                        color: C.teal50, shape: BoxShape.circle),
-                    child: const Icon(Icons.smart_toy_rounded,
-                        size: 22, color: C.teal600),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
+                // ── AI response card ──────────────────────────────────────
+                if (!_isEscalated) ...[
+                  MediCard(
+                    accentColor: C.violet500,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(children: [
-                          Text('AI Appeal in Progress',
-                              style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: C.textPrimary)),
+                          const Icon(Icons.smart_toy_outlined, color: C.violet500, size: 18),
                           const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: C.violet50,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                  color: C.violet500.withValues(alpha: 0.4)),
-                            ),
-                            child: Text(
-                              'Level ${_appealLevel > 0 ? _appealLevel : 1} / 3',
-                              style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: C.violet700)),
-                          ),
+                          Text('What Our AI Did Next',
+                            style: GoogleFonts.inter(
+                              fontSize: 14, fontWeight: FontWeight.w600,
+                              color: C.textPrimary)),
                         ]),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 10),
                         Text(
-                          "We're fighting this denial. No action needed from you.",
+                          'We reviewed the denial, cross-referenced your treatment history, '
+                          'and immediately filed a Level $_appealLevel appeal with a stronger '
+                          'justification letter citing clinical evidence.',
                           style: GoogleFonts.inter(
-                              fontSize: 12, color: C.textSecondary)),
+                            fontSize: 13, color: C.textSecondary, height: 1.5)),
                       ],
                     ),
                   ),
-                ]),
-              ),
-              const SizedBox(height: 20),
-
-              // ── Lifecycle stepper ─────────────────────────────────────────
-              Text('Request Lifecycle',
-                  style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: C.textPrimary)),
-              const SizedBox(height: 12),
-              MediCard(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: _steps.asMap().entries.map((entry) {
-                    final i = entry.key;
-                    final label = entry.value;
-                    final isPast = i < _activeStep;
-                    final isActive = i == _activeStep;
-
-                    return Expanded(
-                      child: Column(children: [
-                        Container(
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isActive
-                                ? C.teal500
-                                : isPast
-                                    ? C.green50
-                                    : C.surf2,
-                            border: Border.all(
-                                color: isActive
-                                    ? C.teal500
-                                    : isPast
-                                        ? C.green500
-                                        : C.surf3,
-                                width: 1.5),
-                          ),
-                          child: Center(
-                              child: isActive
-                                  ? const Icon(Icons.circle,
-                                      size: 10, color: C.white)
-                                  : isPast
-                                      ? const Icon(Icons.check,
-                                          size: 14, color: C.green500)
-                                      : null),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(label,
-                            style: GoogleFonts.inter(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
-                                color: isActive
-                                    ? C.teal600
-                                    : isPast
-                                        ? C.green600
-                                        : C.textTertiary),
-                            textAlign: TextAlign.center),
-                      ]),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // ── What our AI is doing ───────────────────────────────────────
-              MediCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('What our AI advocate is doing',
-                        style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: C.textPrimary)),
-                    const SizedBox(height: 12),
-                    ...[
-                      'Analyzing the denial reason and clinical evidence',
-                      'Drafting a medical necessity appeal letter',
-                      'Pulling supporting studies and AMA guidelines',
-                      'Resubmitting directly to your insurer',
-                    ].map((item) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 20,
-                                height: 20,
-                                decoration: const BoxDecoration(
-                                    color: C.teal50, shape: BoxShape.circle),
-                                child: const Icon(Icons.check_rounded,
-                                    size: 12, color: C.teal600),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                  child: Text(item,
-                                      style: GoogleFonts.inter(
-                                          fontSize: 13,
-                                          color: C.textSecondary,
-                                          height: 1.4))),
-                            ],
-                          ),
-                        )),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: C.amber50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: C.amber500.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(children: [
-                        const Icon(Icons.schedule_rounded,
-                            size: 14, color: C.amber600),
-                        const SizedBox(width: 8),
-                        Expanded(
-                            child: Text(
-                          'L${(_appealLevel + 1).clamp(2, 3)} escalation begins automatically in 48 hours if no response.',
-                          style: GoogleFonts.inter(
-                              fontSize: 12, color: C.amber700),
-                        )),
-                      ]),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // ── Action Buttons ─────────────────────────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: widget.onAppeal,
-                      icon: const Icon(Icons.description_outlined, size: 18),
-                      label: Text('View Appeal Letter',
-                          style: GoogleFonts.inter(
-                              fontSize: 14, fontWeight: FontWeight.w700)),
-                      style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(0, 52),
-                          backgroundColor: C.teal500,
-                          foregroundColor: C.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14))),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  OutlinedButton(
-                    onPressed: () {
-                      showMediToast(context, 'Downloading appeal letter...',
-                          kind: ToastKind.success);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(52, 52),
-                      foregroundColor: C.teal600,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                      side: const BorderSide(color: C.teal500, width: 1),
-                    ),
-                    child: const Icon(Icons.download_rounded, size: 22),
-                  ),
+                  const SizedBox(height: 20),
                 ],
-              ),
-              const SizedBox(height: 10),
 
-              // Notify toggle
-              OutlinedButton.icon(
-                onPressed: () {
-                  setState(() => _notifyEnabled = !_notifyEnabled);
-                  showMediToast(
-                    context,
-                    _notifyEnabled
-                        ? 'Notifications enabled for this appeal.'
-                        : 'Notifications turned off.',
-                    kind: _notifyEnabled ? ToastKind.success : ToastKind.warning,
-                  );
-                },
-                icon: Icon(
-                  _notifyEnabled
-                      ? Icons.notifications_active_outlined
-                      : Icons.notifications_outlined,
-                  size: 18,
-                  color: _notifyEnabled ? C.teal600 : C.textSecondary,
-                ),
-                label: Text(
-                  _notifyEnabled
-                      ? 'Notifications On'
-                      : 'Notify Me of Appeal Outcome',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _notifyEnabled ? C.teal600 : C.textSecondary,
+                // ── Escalated timeline ────────────────────────────────────
+                if (_isEscalated) ...[
+                  MediCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Appeal History',
+                          style: GoogleFonts.inter(
+                            fontSize: 14, fontWeight: FontWeight.w700,
+                            color: C.textPrimary)),
+                        const SizedBox(height: 12),
+                        ...List.generate(3, (i) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(children: [
+                            Container(
+                              width: 28, height: 28,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle, color: C.red50),
+                              child: const Icon(Icons.close_rounded,
+                                  size: 16, color: C.red500),
+                            ),
+                            const SizedBox(width: 12),
+                            Text('Level ${i + 1} Appeal — Denied',
+                              style: GoogleFonts.inter(
+                                fontSize: 13, color: C.textSecondary)),
+                          ]),
+                        )),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  MediCard(
+                    accentColor: C.amber500,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          const Icon(Icons.tips_and_updates_outlined,
+                              color: C.amber600, size: 18),
+                          const SizedBox(width: 8),
+                          Text('Next Steps',
+                            style: GoogleFonts.inter(
+                              fontSize: 14, fontWeight: FontWeight.w600,
+                              color: C.textPrimary)),
+                        ]),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Please contact your treating physician to discuss alternative treatments '
+                          'or to request a formal external review with your insurer.',
+                          style: GoogleFonts.inter(
+                            fontSize: 13, color: C.textSecondary, height: 1.5)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // ── AI Trail ─────────────────────────────────────────────
+                if (_trail.isNotEmpty) ...[
+                  Text('AI Activity Trail',
+                    style: GoogleFonts.inter(
+                      fontSize: 15, fontWeight: FontWeight.w700,
+                      color: C.textPrimary)),
+                  const SizedBox(height: 10),
+                  MediCard(
+                    child: Column(
+                      children: _trail.asMap().entries.map((e) {
+                        final entry  = e.value as Map<String, dynamic>? ?? {};
+                        final agent  = entry['agent']?.toString() ?? '';
+                        final status = entry['status']?.toString() ?? '';
+                        final detail = entry['detail']?.toString() ?? '';
+                        final ok = status.contains('success') || status.contains('approved') || status.contains('submitted');
+                        final isLast = e.key == _trail.length - 1;
+                        return Column(children: [
+                          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Container(
+                              width: 28, height: 28,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: ok ? C.green50 : C.red50),
+                              child: Icon(
+                                ok ? Icons.check_rounded : Icons.close_rounded,
+                                color: ok ? C.green600 : C.red500, size: 16),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 4),
+                                  Text(_agentName(agent),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13, fontWeight: FontWeight.w700,
+                                      color: C.textPrimary)),
+                                  if (detail.isNotEmpty) ...[
+                                    const SizedBox(height: 3),
+                                    Text(detail,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11, color: C.textSecondary, height: 1.4)),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: ok ? C.green50 : C.red50,
+                                borderRadius: BorderRadius.circular(6)),
+                              child: Text(
+                                status.length > 12 ? '${status.substring(0,12)}…' : status,
+                                style: GoogleFonts.inter(
+                                  fontSize: 10, fontWeight: FontWeight.w600,
+                                  color: _statusColor(status))),
+                            ),
+                          ]),
+                          if (!isLast) ...[const SizedBox(height: 10), const Divider(height: 1), const SizedBox(height: 6)],
+                        ]);
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // ── Letter preview ────────────────────────────────────────
+                if (_letter.isNotEmpty) ...[
+                  MediCard(
+                    accentColor: C.violet500,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          const Icon(Icons.description_outlined,
+                              size: 18, color: C.violet500),
+                          const SizedBox(width: 8),
+                          Text('Appeal Letter  ·  ${_letter.split(' ').length} words',
+                            style: GoogleFonts.inter(
+                              fontSize: 14, fontWeight: FontWeight.w600,
+                              color: C.textPrimary)),
+                        ]),
+                        const Divider(height: 20),
+                        Text(
+                          _letter.length > 300
+                              ? '${_letter.substring(0, 300)}…'
+                              : _letter,
+                          style: GoogleFonts.inter(
+                            fontSize: 13, color: C.textSecondary, height: 1.6)),
+                        const SizedBox(height: 10),
+                        GestureDetector(
+                          onTap: () => setState(() => _letterExpanded = !_letterExpanded),
+                          child: Text(
+                            _letterExpanded ? 'Show less ↑' : 'View full letter ↓',
+                            style: GoogleFonts.inter(
+                              fontSize: 13, color: C.violet500,
+                              fontWeight: FontWeight.w600)),
+                        ),
+                        if (_letterExpanded) ...[
+                          const SizedBox(height: 12),
+                          SelectableText(_letter,
+                            style: GoogleFonts.inter(
+                              fontSize: 13, color: C.textPrimary, height: 1.7)),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // ── Appeal / Escalation CTA ───────────────────────────────
+                if (!_isEscalated) ...[
+                  if (_letter.isNotEmpty) ...[
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.copy_rounded, size: 18),
+                      label: const Text('Copy Appeal Letter'),
+                      onPressed: _appealing ? null : () {
+                        Clipboard.setData(ClipboardData(text: _letter));
+                        showMediToast(context, 'Letter copied to clipboard');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: C.violet500,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        minimumSize: const Size(double.infinity, 52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  PrimaryButton(
+                    label: 'Appeal Decision (Level ${_appealLevel + 1} of 3)',
+                    icon: Icons.gavel_rounded,
+                    loading: _appealing,
+                    onPressed: _appealing ? null : _runAppeal,
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('File Another Request'),
+                  onPressed: _appealing ? null : widget.onNewRequest,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: C.textPrimary,
+                    side: const BorderSide(color: C.surf3),
+                    minimumSize: const Size(double.infinity, 52),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                   ),
                 ),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 52),
-                  foregroundColor:
-                      _notifyEnabled ? C.teal600 : C.textSecondary,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  side: BorderSide(
-                      color: _notifyEnabled ? C.teal500 : C.surf3,
-                      width: _notifyEnabled ? 1.5 : 0.5),
-                ),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton(
-                onPressed: widget.onDashboard,
-                style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 52),
-                    foregroundColor: C.textPrimary,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                    side: const BorderSide(color: C.surf3)),
-                child: Text('Back to Dashboard',
-                    style: GoogleFonts.inter(
-                        fontSize: 14, fontWeight: FontWeight.w600)),
-              ),
-              const SizedBox(height: 24),
-            ],
+                const SizedBox(height: 32),
+              ]),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:io' show Platform;
 import '../screens/s06b_prompt_customization.dart';
+import '../screens/s04_patient_info.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MediAuth AI — API Service
@@ -12,9 +12,8 @@ import '../screens/s06b_prompt_customization.dart';
 // Base URL is read from .env (API_BASE_URL) with a platform-aware fallback.
 //
 // Authentication:
-//   Every request includes an Authorization: Bearer <supabase_jwt> header.
-//   The current backend does not validate tokens, but the header is included
-//   for forward-compatibility when auth middleware is added.
+//   Every request includes an Authorization: Bearer <token> header, read securely
+//   from FlutterSecureStorage.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ApiException implements Exception {
@@ -29,36 +28,26 @@ class ApiException implements Exception {
 }
 
 class ApiService {
+  static const _storage = FlutterSecureStorage();
+
   // ── Base URL ────────────────────────────────────────────────────────────────
 
   static String get baseUrl {
-    final envUrl = dotenv.env['API_BASE_URL'];
-    if (envUrl != null && envUrl.isNotEmpty) return envUrl;
-
-    // Platform-aware fallback — keeps dev working even without .env
-    bool isAndroid;
-    try {
-      isAndroid = Platform.isAndroid;
-    } catch (_) {
-      isAndroid = false; // Web / Desktop
-    }
-    return isAndroid
-        ? 'http://10.0.2.2:8000/api/v1'
-        : 'http://127.0.0.1:8000/api/v1';
+    return dotenv.env['API_BASE_URL'] ?? 'https://rohitbhardwaj007-mediauth.hf.space/api/v1';
   }
 
   // ── Auth header ─────────────────────────────────────────────────────────────
 
-  /// Returns headers with Content-Type and, if available, the Supabase JWT.
-  static Map<String, String> _headers() {
+  /// Returns headers with Content-Type and, if available, the Secure Storage JWT.
+  static Future<Map<String, String>> _headers() async {
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
 
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
-      headers['Authorization'] = 'Bearer ${session.accessToken}';
+    final token = await _storage.read(key: 'access_token');
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
     }
 
     return headers;
@@ -69,8 +58,9 @@ class ApiService {
   static Future<Map<String, dynamic>> healthCheck() async {
     final url = Uri.parse('${baseUrl.replaceAll('/api/v1', '')}/health');
     try {
+      final headers = await _headers();
       final res = await http
-          .get(url, headers: _headers())
+          .get(url, headers: headers)
           .timeout(const Duration(seconds: 10));
       if (res.statusCode != 200) {
         throw ApiException('Health check failed', statusCode: res.statusCode);
@@ -88,17 +78,38 @@ class ApiService {
   /// Runs the full 7-agent pipeline.
   /// Timeout: 120 seconds — real AI pipeline can take 45–90s.
   static Future<Map<String, dynamic>> authorizeTreatment(
-      String patientText, String requestedTreatment) async {
+      String patientText, String requestedTreatment, {PatientFormData? patient}) async {
     final url = Uri.parse('$baseUrl/authorize');
     try {
+      final headers = await _headers();
+      
+      final Map<String, dynamic> body = {
+        'patient_text': patientText,
+        'requested_treatment': requestedTreatment,
+      };
+
+      if (patient != null) {
+        final dob = patient.dateOfBirth;
+        final dobStr = dob != null
+            ? '${dob.year}-${dob.month.toString().padLeft(2,'0')}-${dob.day.toString().padLeft(2,'0')}'
+            : null;
+        body['structured_profile'] = {
+          'name': patient.fullName,
+          'date_of_birth': dobStr,
+          'insurance_policy_number': patient.policyNumber,
+          'insurer_name': patient.insurer,
+          'diagnoses': patient.diagnoses,
+          'medications': patient.medications,
+          'allergies': patient.allergies,
+          'medical_history': patient.medicalHistory,
+        };
+      }
+
       final res = await http
           .post(
             url,
-            headers: _headers(),
-            body: jsonEncode({
-              'patient_text': patientText,
-              'requested_treatment': requestedTreatment,
-            }),
+            headers: headers,
+            body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 120));
 
@@ -119,6 +130,34 @@ class ApiService {
     }
   }
 
+  // ── Appeal workflow ─────────────────────────────────────────────────────────
+
+  /// POST /api/v1/authorize/{auth_request_id}/appeal
+  /// Runs a dedicated manual appeal directly from Level 1 instead of from scratch.
+  static Future<Map<String, dynamic>> submitAppeal(String authRequestId) async {
+    final url = Uri.parse('$baseUrl/authorize/$authRequestId/appeal');
+    try {
+      final headers = await _headers();
+      final res = await http
+          .post(url, headers: headers)
+          .timeout(const Duration(seconds: 120));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+      
+      String detail = 'Appeal failed';
+      try {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        detail = body['detail']?.toString() ?? detail;
+      } catch (_) {}
+      throw ApiException(detail, statusCode: res.statusCode);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error during appeal: $e');
+    }
+  }
+
   // ── Prompt management ───────────────────────────────────────────────────────
 
   /// GET /api/v1/prompts/
@@ -126,8 +165,9 @@ class ApiService {
   static Future<List<String>> fetchPromptsList() async {
     final url = Uri.parse('$baseUrl/prompts/');
     try {
+      final headers = await _headers();
       final res = await http
-          .get(url, headers: _headers())
+          .get(url, headers: headers)
           .timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) {
         throw ApiException('Failed to list prompts', statusCode: res.statusCode);
@@ -145,8 +185,9 @@ class ApiService {
   static Future<Map<String, String>> fetchPrompt(String agentKey) async {
     final url = Uri.parse('$baseUrl/prompts/$agentKey');
     try {
+      final headers = await _headers();
       final res = await http
-          .get(url, headers: _headers())
+          .get(url, headers: headers)
           .timeout(const Duration(seconds: 15));
       if (res.statusCode == 404) {
         throw ApiException("Agent '$agentKey' not found", statusCode: 404);
@@ -173,10 +214,11 @@ class ApiService {
       String agentKey, String system, String userTemplate) async {
     final url = Uri.parse('$baseUrl/prompts/$agentKey');
     try {
+      final headers = await _headers();
       final res = await http
           .put(
             url,
-            headers: _headers(),
+            headers: headers,
             body: jsonEncode({
               'system': system,
               'user_template': userTemplate,
@@ -202,4 +244,49 @@ class ApiService {
   /// Accepts an [AgentPromptData] object (same signature as before).
   static Future<void> updatePrompt(AgentPromptData agent) =>
       updatePromptDirect(agent.key, agent.systemPrompt, agent.userTemplate);
+
+  // ── History ─────────────────────────────────────────────────────────────────
+
+  /// GET /api/v1/authorize?limit=50
+  /// Returns the list of all past authorization requests from the database.
+  static Future<List<Map<String, dynamic>>> fetchHistory({int limit = 50}) async {
+    final url = Uri.parse('$baseUrl/authorize?limit=$limit');
+    try {
+      final headers = await _headers();
+      final res = await http
+          .get(url, headers: headers)
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) {
+        throw ApiException('Failed to load history', statusCode: res.statusCode);
+      }
+      final body = jsonDecode(res.body) as List<dynamic>;
+      return body.map((e) => e as Map<String, dynamic>).toList();
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error loading history: $e');
+    }
+  }
+
+  /// GET /api/v1/authorize/{auth_request_id}
+  /// Returns a single authorization request by its UUID.
+  static Future<Map<String, dynamic>> fetchAuthorizationById(String id) async {
+    final url = Uri.parse('$baseUrl/authorize/$id');
+    try {
+      final headers = await _headers();
+      final res = await http
+          .get(url, headers: headers)
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode == 404) {
+        throw ApiException('Authorization not found', statusCode: 404);
+      }
+      if (res.statusCode != 200) {
+        throw ApiException('Failed to load authorization', statusCode: res.statusCode);
+      }
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error loading authorization: $e');
+    }
+  }
 }
+

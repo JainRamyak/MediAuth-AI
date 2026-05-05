@@ -1,0 +1,33 @@
+# render.yaml — Render Blueprint (Infrastructure as Code)
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - name: mediauth-backend
+    type: web
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free              # change to "starter" for always-on
+    region: oregon          # or: frankfurt, singapore, ohio
+
+    # Render sets PORT automatically; uvicorn reads it from $PORT
+    healthCheckPath: /health
+
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false          # ← fill in Render dashboard (secret)
+
+      - key: DATABASE_URL
+        sync: false          # ← fill in Render dashboard (Supabase URL)
+
+      - key: JWT_SECRET
+        sync: false          # ← fill in Render dashboard (secret)
+
+      - key: JWT_ALGORITHM
+        value: HS256
+
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "1440"
+
+      - key: ENVIRONMENT
+        value: production
