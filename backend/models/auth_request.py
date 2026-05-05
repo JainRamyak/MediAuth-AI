@@ -10,6 +10,7 @@ class AuthRequest(Base):
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
     user_id = Column(UUID(as_uuid=True), nullable=True)
     status = Column(String(50), default="pending")
+    requested_treatment = Column(Text, nullable=True)
     icd10_codes = Column(JSON)
     cpt_codes = Column(JSON)
     clinical_summary = Column(Text)

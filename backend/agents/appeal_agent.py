@@ -28,7 +28,7 @@ def run_appeal_agent(
     - Patient diagnoses: {patient_profile.get('diagnoses', [])}
     - Medications already tried: {patient_profile.get('medications', [])}
     - Clinical necessity summary: {medical_analysis.get('clinical_necessity_summary', '')}
-    - Relevant ICD-10 codes: {[c['code'] for c in medical_analysis.get('icd10_codes', [])]}
+    - Relevant ICD-10 codes: {[c['code'] if isinstance(c, dict) else str(c) for c in medical_analysis.get('icd10_codes', [])]}
     - Treatment follows clinical guidelines: {medical_analysis.get('treatment_follows_guidelines', True)}
     - Step therapy already attempted: {medical_analysis.get('step_therapy_required', False)}
     """

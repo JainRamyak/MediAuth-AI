@@ -99,10 +99,25 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     )
 
 
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import uuid
+
+security = HTTPBearer(auto_error=False)
+
 @router.get("/me")
-def get_me(db: Session = Depends(get_db)):
-    """Test endpoint — verify your token works."""
-    return {"message": "Token valid. Auth system working."}
+def get_me(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    """Validates the existing session token against the API manually."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Token missing")
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = uuid.UUID(payload.get("sub"))
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"user_id": str(user.id), "email": user.email, "full_name": user.full_name}
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token invalid or expired")
 
 @router.get("/fix-db")
 def fix_db(db: Session = Depends(get_db)):

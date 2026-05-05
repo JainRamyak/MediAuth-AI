@@ -18,6 +18,8 @@ def run_policy_agent(patient_profile: dict, insurer_name: str) -> dict:
         
         # 2. Query ChromaDB for policy context
         chunks = query_policies(query=query, insurer=insurer_name, n_results=3)
+        if not chunks:
+            chunks = query_policies(query=query, n_results=3)
         policy_context = "\n---\n".join(chunks) if chunks else "No specific policy documents found for this insurer."
         
         # 3. Create a patient summary string

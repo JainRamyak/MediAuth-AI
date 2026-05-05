@@ -40,21 +40,25 @@ def ingest_policies():
     pdf_files = glob.glob(os.path.join(pdf_dir, "*.pdf"))
 
     if not pdf_files:
-        print("No PDFs found. Adding sample policy text for demo.")
-        sample_text = """
-        BlueCross Policy Coverage Rules:
-        Prior authorization is required for all specialty medications exceeding $500/month.
-        Mental health services require a referral from primary care physician.
-        Step therapy is required: patient must try generic alternatives before brand-name drugs.
-        MRI and CT scans require pre-authorization. X-rays do not require pre-authorization.
-        Oncology treatments require specialist referral and diagnosis documentation.
-        """
-        collection.add(
-            documents=[sample_text],
-            ids=["sample_policy_1"],
-            metadatas=[{"insurer": "BlueCross", "type": "general_coverage"}]
-        )
-        print("Sample policy loaded.")
+        print("No PDFs found. Adding sample policy text for demo across all insurers.")
+        SAMPLE_POLICIES = {
+            'BlueCross': 'Prior auth required for specialty drugs >$500/month. Step therapy required...',
+            'Aetna':     'Pre-authorization required for all elective procedures. MRI needs radiologist referral...',
+            'UHC':       'Prior authorization required for inpatient admissions >72 hrs. Oncology needs tumor board...',
+            'Cigna':     'Step therapy required for biologics. Generic substitution mandatory for Tier 1-2...',
+            'Humana':    'Prior auth for durable medical equipment >$300. Home health requires physician order...',
+            'Kaiser':    'All referrals to specialists require PCP authorization. In-network only...',
+            'Medicaid':  'Prior auth for all non-emergency inpatient stays. Formulary restrictions apply...',
+            'Medicare':  'Part B auth required for outpatient surgical procedures. ABN form needed...',
+            'Other':     'Prior authorization required for treatments over $1000. Medical necessity documentation needed...',
+        }
+        for insurer, text in SAMPLE_POLICIES.items():
+            collection.add(
+                documents=[text],
+                ids=[f"sample_{insurer.lower()}"],
+                metadatas=[{"insurer": insurer, "type": "general_coverage"}]
+            )
+        print("All Sample policies successfully loaded.")
         return
 
     for pdf_path in pdf_files:

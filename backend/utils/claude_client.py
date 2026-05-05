@@ -4,6 +4,7 @@
 
 import os
 import json
+import time
 from groq import Groq
 from dotenv import load_dotenv
 
@@ -38,13 +39,19 @@ def call_claude_for_json(system_prompt: str, user_message: str) -> dict:
     Strips markdown fences if the model adds them.
     Raises json.JSONDecodeError if response is not valid JSON.
     """
-    raw = call_claude(system_prompt, user_message, max_tokens=2000)
-    
-    # Strip markdown code fences if model wraps JSON in them
-    clean = raw.strip()
-    if clean.startswith("```"):
-        lines = clean.split("\n")
-        # Remove first line (```json or ```) and last line (```)
-        clean = "\n".join(lines[1:-1]).strip()
-    
-    return json.loads(clean)
+    for attempt in range(3):
+        try:
+            raw = call_claude(system_prompt, user_message, max_tokens=2000)
+            
+            # Strip markdown code fences if model wraps JSON in them
+            clean = raw.strip()
+            if clean.startswith("```"):
+                lines = clean.split("\n")
+                # Remove first line (```json or ```) and last line (```)
+                clean = "\n".join(lines[1:-1]).strip()
+            
+            return json.loads(clean)
+        except (json.JSONDecodeError, Exception) as e:
+            if attempt == 2:
+                raise
+            time.sleep(1)
