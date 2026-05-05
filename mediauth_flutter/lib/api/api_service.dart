@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../screens/s06b_prompt_customization.dart';
+import '../screens/s04_patient_info.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MediAuth AI — API Service
@@ -31,9 +33,7 @@ class ApiService {
   // ── Base URL ────────────────────────────────────────────────────────────────
 
   static String get baseUrl {
-    // Note: Temporarily hardcoded to guarantee it reaches the correct endpoint
-    // since Flutter's asset bundler sometimes caches the .env file.
-    return 'https://rohitbhardwaj007-mediauth.hf.space/api/v1';
+    return dotenv.env['API_BASE_URL'] ?? 'https://rohitbhardwaj007-mediauth.hf.space/api/v1';
   }
 
   // ── Auth header ─────────────────────────────────────────────────────────────
@@ -78,18 +78,38 @@ class ApiService {
   /// Runs the full 7-agent pipeline.
   /// Timeout: 120 seconds — real AI pipeline can take 45–90s.
   static Future<Map<String, dynamic>> authorizeTreatment(
-      String patientText, String requestedTreatment) async {
+      String patientText, String requestedTreatment, {PatientFormData? patient}) async {
     final url = Uri.parse('$baseUrl/authorize');
     try {
       final headers = await _headers();
+      
+      final Map<String, dynamic> body = {
+        'patient_text': patientText,
+        'requested_treatment': requestedTreatment,
+      };
+
+      if (patient != null) {
+        final dob = patient.dateOfBirth;
+        final dobStr = dob != null
+            ? '${dob.year}-${dob.month.toString().padLeft(2,'0')}-${dob.day.toString().padLeft(2,'0')}'
+            : null;
+        body['structured_profile'] = {
+          'name': patient.fullName,
+          'date_of_birth': dobStr,
+          'insurance_policy_number': patient.policyNumber,
+          'insurer_name': patient.insurer,
+          'diagnoses': patient.diagnoses,
+          'medications': patient.medications,
+          'allergies': patient.allergies,
+          'medical_history': patient.medicalHistory,
+        };
+      }
+
       final res = await http
           .post(
             url,
             headers: headers,
-            body: jsonEncode({
-              'patient_text': patientText,
-              'requested_treatment': requestedTreatment,
-            }),
+            body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 120));
 
@@ -107,6 +127,34 @@ class ApiService {
     } catch (e) {
       if (e is ApiException) rethrow;
       throw ApiException('Network error during authorization: $e');
+    }
+  }
+
+  // ── Appeal workflow ─────────────────────────────────────────────────────────
+
+  /// POST /api/v1/authorize/{auth_request_id}/appeal
+  /// Runs a dedicated manual appeal directly from Level 1 instead of from scratch.
+  static Future<Map<String, dynamic>> submitAppeal(String authRequestId) async {
+    final url = Uri.parse('$baseUrl/authorize/$authRequestId/appeal');
+    try {
+      final headers = await _headers();
+      final res = await http
+          .post(url, headers: headers)
+          .timeout(const Duration(seconds: 120));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+      
+      String detail = 'Appeal failed';
+      try {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        detail = body['detail']?.toString() ?? detail;
+      } catch (_) {}
+      throw ApiException(detail, statusCode: res.statusCode);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error during appeal: $e');
     }
   }
 

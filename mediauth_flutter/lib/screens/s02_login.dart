@@ -132,10 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(width: 8),
                   Text('Remember me?', style: GoogleFonts.inter(fontSize: 13, color: C.textSecondary)),
                   const Spacer(),
-                  TextButton(
-                    onPressed: () => showForgotPasswordSheet(context),
-                    child: Text('Forgot password?', style: GoogleFonts.inter(fontSize: 13, color: C.textSecondary)),
-                  ),
+                  // Forgot password removed until real endpoint available
                 ],
               ),
               

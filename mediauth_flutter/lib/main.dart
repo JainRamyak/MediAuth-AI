@@ -229,9 +229,12 @@ class _AppRootState extends State<_AppRoot> {
   });
 
   void _openResult(Map<String, dynamic> raw) {
-    _apiResult = raw;
+    if (!mounted) return;
     final status = (raw['workflow_status'] ?? '').toString().toLowerCase();
-    _go(status.contains('approved') ? _Screen.approved : _Screen.denied);
+    setState(() {
+      _apiResult = raw;
+      _screen = status.contains('approved') ? _Screen.approved : _Screen.denied;
+    });
   }
 
   Widget _buildIntake() => switch (_intakeStep) {

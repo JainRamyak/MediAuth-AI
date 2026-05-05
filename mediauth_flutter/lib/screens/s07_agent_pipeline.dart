@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/colors.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
@@ -108,30 +106,18 @@ Treating Physician: ${p.doctorName.isEmpty ? 'Not specified' : p.doctorName}''';
           (widget.treatment.whyNeeded.isNotEmpty
               ? '\nReason: ${widget.treatment.whyNeeded}' : '');
 
-      final res = await ApiService.authorizeTreatment(pText, treatText);
+      final res = await ApiService.authorizeTreatment(pText, treatText, patient: widget.patient);
 
       // Extract real audit trail from API response
       _auditTrail = res['audit_trail'] as List<dynamic>? ?? [];
 
-      // Persist full result to local history
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final hist  = prefs.getStringList('auth_history') ?? [];
-        final entry = {
-          ...res,
-          'patient_text':        pText,         // stored for appeal re-submission
-          'requested_treatment': treatText,     // stored for appeal re-submission
-          'insurer':             widget.patient.insurer,
-          'policy_number':       widget.patient.policyNumber,
-          'created_at':          DateTime.now().toIso8601String(),
-        };
-        hist.insert(0, jsonEncode(entry));
-        if (hist.length > 50) hist.removeLast();
-        await prefs.setStringList('auth_history', hist);
-      } catch (_) {}
-
       if (!mounted) return;
-      setState(() { _result = res; _apiDone = true; });
+      final finalRes = {
+        ...res,
+        'patient_text': pText,
+        'requested_treatment': treatText,
+      };
+      setState(() { _result = finalRes; _apiDone = true; });
     } catch (e) {
       if (!mounted) return;
       setState(() { _hardTimeout = true; _clock?.cancel(); });
@@ -293,7 +279,7 @@ Treating Physician: ${p.doctorName.isEmpty ? 'Not specified' : p.doctorName}''';
                           style: GoogleFonts.inter(
                             fontSize: 15, fontWeight: FontWeight.w700,
                             color: C.textPrimary)),
-                        Text('$_done of ${_agentDefs.length} agents complete',
+                        Text('$_done of $_animatedAgentCount agents complete',
                           style: GoogleFonts.inter(
                             fontSize: 12, color: C.textTertiary)),
                       ],

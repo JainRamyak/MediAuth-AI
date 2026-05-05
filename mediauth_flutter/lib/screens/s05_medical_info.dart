@@ -75,9 +75,7 @@ class _MedicalInfoScreenState extends State<MedicalInfoScreen> {
         .toList();
   }
 
-  bool get _canContinue =>
-      widget.data.diagnoses.isNotEmpty &&
-      _medCtrls.any((c) => c.text.trim().isNotEmpty);
+  bool get _canContinue => widget.data.diagnoses.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {

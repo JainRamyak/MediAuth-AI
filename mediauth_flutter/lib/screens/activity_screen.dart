@@ -1,7 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/colors.dart';
 import '../widgets/shared_widgets.dart';
 import '../api/api_service.dart';
@@ -21,8 +19,6 @@ class ActivityScreen extends StatefulWidget {
 class _ActivityScreenState extends State<ActivityScreen> {
   List<Map<String, dynamic>> _all = [];
   bool _loading = true;
-  bool _fromCache = false;
-  bool _backendReachable = true;
   String _filter = 'All';
   final _searchCtrl = TextEditingController();
 
@@ -39,33 +35,16 @@ class _ActivityScreenState extends State<ActivityScreen> {
   void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _fromCache = false; _backendReachable = true; });
+    setState(() { _loading = true; });
 
     // ── Try backend first ────────────────────────────────────────────────────
     try {
       final items = await ApiService.fetchHistory(limit: 50);
-      // Normalize field names from backend response to match what the result screens expect
       final normalized = items.map((r) => _normalizeBackendItem(r)).toList();
       if (mounted) setState(() { _all = normalized; _loading = false; });
       return;
-    } on ApiException catch (e) {
-      // 405 = endpoint not deployed yet (older HF Space build)
-      // Other statuses = backend reachable but erroring
-      _backendReachable = e.statusCode != null; // null = network/timeout
     } catch (_) {
-      _backendReachable = false;
-    }
-
-    // ── Fallback: SharedPreferences cache ────────────────────────────────────
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getStringList('auth_history') ?? [];
-      final items = raw.map((s) {
-        try { return jsonDecode(s) as Map<String, dynamic>; } catch (_) { return null; }
-      }).whereType<Map<String, dynamic>>().toList();
-      if (mounted) setState(() { _all = items; _loading = false; _fromCache = true; });
-    } catch (_) {
-      if (mounted) setState(() { _all = []; _loading = false; _fromCache = true; });
+      if (mounted) setState(() { _all = []; _loading = false; });
     }
   }
 

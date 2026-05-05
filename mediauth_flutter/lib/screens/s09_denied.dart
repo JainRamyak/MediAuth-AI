@@ -50,17 +50,18 @@ class _DeniedScreenState extends State<DeniedScreen> {
   List<dynamic> get _trail =>
       _result['audit_trail'] as List<dynamic>? ?? [];
 
-  /// Re-run the full pipeline (Agent 6 handles the appeal internally).
+  /// Re-runs only the targeted Appeal node subgraph on the backend.
   Future<void> _runAppeal() async {
+    final authId = _result['auth_request_id']?.toString() ?? '';
     final patientText = _result['patient_text']?.toString() ?? '';
     final treatText   = _result['requested_treatment']?.toString() ?? '';
-    if (patientText.isEmpty || treatText.isEmpty) {
-      showMediToast(context, 'Cannot re-submit: original data missing.', kind: ToastKind.error);
+    if (authId.isEmpty) {
+      showMediToast(context, 'Cannot re-submit: original Auth ID missing.', kind: ToastKind.error);
       return;
     }
     setState(() => _appealing = true);
     try {
-      final res = await ApiService.authorizeTreatment(patientText, treatText);
+      final res = await ApiService.submitAppeal(authId);
       if (!mounted) return;
       final newStatus = res['workflow_status']?.toString().toLowerCase() ?? '';
       setState(() {
