@@ -1,12 +1,3 @@
----
-title: MediAuth AI
-emoji: 🏥
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
-pinned: false
----
 
 # 🏥 MediAuth AI — Autonomous Insurance Authorization & Appeal Ecosystem
 
